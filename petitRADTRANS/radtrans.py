@@ -1324,29 +1324,25 @@ class Radtrans:
         integrand_scattering = integrand_scale[:, None] * clouds_scattering_opacities[:, :, None]
         integrand_anisotropy = integrand_scattering * (1.0 - clouds_particles_asymmetry_parameters[:, :, None])
 
-        # target_particle_radii = [1e-3]
-        # target_pressure = [1e-3 * 1e6]
         if target_pressure is not None:
             target_pressure = [tp * 1e6 for tp in target_pressure]  # bar to cgs
+            target_particle_radii = [tr * 1e-4 for tr in target_particle_radii]  # cm to microns
 
-            # Getting the indices of the closest bins
             disabled_bins = [(np.abs(cloud_particles_radii_bins - tr)).argmin() for tr in target_particle_radii]
             in_layer = [(np.abs(pressures - tp)).argmin() for tp in target_pressure]
 
-            # Convert to sets for faster lookups
             disabled_bins = set(disabled_bins)
             in_layer = set(in_layer)
 
             print(disabled_bins, in_layer)
 
-            # Apply the disabling mask
             block = np.zeros_like(integrand_scale)
             for bin_index in range(len(cloud_particles_radii)):
                 for layer_index in range(n.shape[0]):
                     if bin_index in disabled_bins and layer_index in in_layer:
-                        block[bin_index] = 0
+                        block[bin_index][layer_index] = 0
                     else:
-                        block[bin_index] = 1
+                        block[bin_index][layer_index] = 1
 
             integrand_scale *= block
             integrand_absorption *= block[:, None]
