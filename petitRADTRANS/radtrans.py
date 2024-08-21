@@ -1334,8 +1334,6 @@ class Radtrans:
             disabled_bins = set(disabled_bins)
             in_layer = set(in_layer)
 
-            print(disabled_bins, in_layer)
-
             block = np.zeros_like(integrand_scale)
             for bin_index in range(len(cloud_particles_radii)):
                 for layer_index in range(n.shape[0]):
