@@ -3574,7 +3574,7 @@ class Radtrans:
             additional_outputs['cloud_particles_mean_radii'] = cloud_particles_mean_radii
 
         if return_particles_radii_bins:
-            additional_outputs['particles_radii_bins'] = self.clouds_loaded_opacities['particles_radii_bins']
+            additional_outputs['particles_radii_bins'] = self._clouds_loaded_opacities['particles_radii_bins']
 
         del cloud_particles_mean_radii
 
