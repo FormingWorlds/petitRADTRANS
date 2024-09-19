@@ -2839,7 +2839,10 @@ class Radtrans:
             return_photosphere_radius: bool = False,
             return_rosseland_optical_depths: bool = False,
             return_cloud_contribution: bool = False,
-            return_opacities: bool = False
+            return_opacities: bool = False,
+            return_particles_radii_bins: bool = False,
+            target_particle_radii: np.ndarray[float] = None,
+            target_pressure: np.ndarray[float] = None,
     ) -> tuple[npt.NDArray[float], npt.NDArray[float], dict[str, any]]:
         """ Method to calculate the atmosphere's emitted flux (emission spectrum).
 
@@ -2956,6 +2959,10 @@ class Radtrans:
                 return_opacities (Optional[bool]):
                     if True, the absorption opacities and scattering opacities for species and clouds, as well as the
                     optical depths, are returned
+                return_particles_radii_bins (Optional[bool]):
+                    if True, the particle radii bins are returned
+                target_particle_radii (Optional[np.ndarray[float]]):
+                target_pressure (Optional[np.ndarray[float]]):
         """
         if emission_geometry is not None:  # TODO remove in 4.0
             irradiation_geometry = emission_geometry
@@ -3045,7 +3052,9 @@ class Radtrans:
                 cloud_photosphere_median_optical_depth=cloud_photosphere_median_optical_depth,
                 return_cloud_contribution=return_cloud_contribution,
                 additional_absorption_opacities_function=additional_absorption_opacities_function,
-                additional_scattering_opacities_function=additional_scattering_opacities_function
+                additional_scattering_opacities_function=additional_scattering_opacities_function,
+                target_particle_radii=target_particle_radii,
+                target_pressure=target_pressure
             )
         )
 
@@ -3108,6 +3117,9 @@ class Radtrans:
 
         if cloud_particles_mean_radii is not None:
             additional_outputs['cloud_particles_mean_radii'] = cloud_particles_mean_radii
+
+        if return_particles_radii_bins:
+            additional_outputs['particles_radii_bins'] = self._clouds_loaded_opacities['particles_radii_bins']
 
         if stellar_intensities is not None:
             additional_outputs['stellar_intensities'] = stellar_intensities
