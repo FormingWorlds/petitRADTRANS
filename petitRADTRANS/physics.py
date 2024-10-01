@@ -393,7 +393,7 @@ def temperature_profile_function_guillot_global_ret(pressures, delta, gamma,
 
 def temperature_profile_function_guillot_metallic(pressures, gamma, reference_gravity,
                                                   intrinsic_temperature, equilibrium_temperature,
-                                                  infrared_mean_opacity_solar_matallicity, metallicity=None):
+                                                  infrared_mean_opacity_solar_metallicity, metallicity=None):
     """Get a Guillot temperature profile depending on metallicity.
 
     Args:
@@ -410,9 +410,9 @@ def temperature_profile_function_guillot_metallic(pressures, gamma, reference_gr
         temperatures: (K) the temperature at each pressures of the atmosphere
     """
     if metallicity is not None:
-        kappa_ir = infrared_mean_opacity_solar_matallicity * metallicity
+        kappa_ir = infrared_mean_opacity_solar_metallicity * metallicity
     else:
-        kappa_ir = infrared_mean_opacity_solar_matallicity
+        kappa_ir = infrared_mean_opacity_solar_metallicity
 
     temperatures = temperature_profile_function_guillot_global(
         pressures=pressures,
