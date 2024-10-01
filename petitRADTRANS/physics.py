@@ -402,7 +402,7 @@ def temperature_profile_function_guillot_metallic(pressures, gamma, reference_gr
         reference_gravity: (cm.s-2) surface gravity
         intrinsic_temperature: (K) intrinsic temperature
         equilibrium_temperature: (K) equilibrium temperature
-        infrared_mean_opacity_solar_matallicity:
+        infrared_mean_opacity_solar_metallicity:
             (cm2.s-1) infrared mean opacity for a solar metallicity (Z = 1) atmosphere
         metallicity: ratio of heavy elements abundance over H abundance with respect to the solar ratio
 
