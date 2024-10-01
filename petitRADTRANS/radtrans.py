@@ -2841,6 +2841,7 @@ class Radtrans:
             return_cloud_contribution: bool = False,
             return_opacities: bool = False,
             return_particles_radii_bins: bool = False,
+            return_particles_radii: bool = True,
             target_particle_radii: np.ndarray[float] = None,
             target_pressure: np.ndarray[float] = None,
     ) -> tuple[npt.NDArray[float], npt.NDArray[float], dict[str, any]]:
@@ -2961,6 +2962,8 @@ class Radtrans:
                     optical depths, are returned
                 return_particles_radii_bins (Optional[bool]):
                     if True, the particle radii bins are returned
+                return_particles_radii (Optional[bool]):
+                    if True, the particle radii are returned
                 target_particle_radii (Optional[np.ndarray[float]]):
                 target_pressure (Optional[np.ndarray[float]]):
         """
@@ -3120,6 +3123,9 @@ class Radtrans:
 
         if return_particles_radii_bins:
             additional_outputs['particles_radii_bins'] = self._clouds_loaded_opacities['particles_radii_bins']
+
+        if return_particles_radii:
+            additional_outputs['particles_radii'] = self._clouds_loaded_opacities['particles_radii']
 
         if stellar_intensities is not None:
             additional_outputs['stellar_intensities'] = stellar_intensities
@@ -3422,6 +3428,8 @@ class Radtrans:
             return_radius_hydrostatic_equilibrium: bool = False,
             return_opacities: bool = False,
             return_particles_radii_bins: bool = True,
+            return_particles_radii: bool = True,
+            return_particles_densities: bool = True,
             target_particle_radii: np.ndarray[float] = None,
             target_pressure: np.ndarray[float] = None,
     ) -> tuple[npt.NDArray[float], npt.NDArray[float], dict[str, any]]:
@@ -3530,6 +3538,10 @@ class Radtrans:
                     if True, the absorption opacities and scattering opacities are returned
                 return_particles_radii_bins (Optional[bool]):
                     if True, the particles radii bins are returned
+                return_particles_radii (Optional[bool]):
+                    if True, the particles radii are returned
+                return_particles_densities (Optional[bool]):
+                    if True, the particles densities are returned
                 target_particle_radii (Optional[np.ndarray[float]]):
                 target_pressure (Optional[np.ndarray[float]]):
         """
@@ -3587,6 +3599,12 @@ class Radtrans:
 
         if return_particles_radii_bins:
             additional_outputs['particles_radii_bins'] = self._clouds_loaded_opacities['particles_radii_bins']
+
+        if return_particles_radii:
+            additional_outputs['particles_radii'] = self._clouds_loaded_opacities['particles_radii']
+
+        if return_particles_densities:
+            additional_outputs['particles_densities'] = self._clouds_loaded_opacities['particles_densities']
 
         del cloud_particles_mean_radii
 
