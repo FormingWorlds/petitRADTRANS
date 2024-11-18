@@ -778,6 +778,7 @@ class Radtrans:
                              opaque_cloud_top_pressure=None,
                              cloud_particles_mean_radii=None, cloud_particle_radius_distribution_std=None,
                              cloud_particles_radius_distribution="lognormal", cloud_hansen_a=None, cloud_hansen_b=None,
+                             cloud_particle_number_density_grid=None,
                              clouds_particles_porosity_factor=None,
                              cloud_f_sed=None, eddy_diffusion_coefficients=None,
                              haze_factor=1.0, power_law_opacity_350nm=None, power_law_opacity_coefficient=None,
@@ -804,6 +805,7 @@ class Radtrans:
             cloud_particles_radius_distribution:
             cloud_hansen_a:
             cloud_hansen_b:
+            cloud_particle_number_density_grid:
             return_cloud_contribution:
             additional_absorption_opacities_function:
             additional_scattering_opacities_function:
@@ -982,6 +984,7 @@ class Radtrans:
                     cloud_particles_radius_distribution=cloud_particles_radius_distribution,
                     cloud_hansen_a=cloud_hansen_a,
                     cloud_hansen_b=cloud_hansen_b,
+                    cloud_particle_number_density_grid=cloud_particle_number_density_grid,
                     clouds_particles_porosity_factor=clouds_particles_porosity_factor,
                     photospheric_cloud_optical_depths=cloud_photosphere_median_optical_depth,
                     return_cloud_contribution=return_cloud_contribution,
@@ -2925,6 +2928,7 @@ class Radtrans:
             cloud_particles_radius_distribution: str = 'lognormal',
             cloud_hansen_a: dict[str, np.ndarray[float]] = None,
             cloud_hansen_b: dict[str, np.ndarray[float]] = None,
+            cloud_particle_number_density_grid: dict[str, np.ndarray[float]] = None,
             clouds_particles_porosity_factor: dict[str, float] = None,
             cloud_f_sed: float = None,
             eddy_diffusion_coefficients: npt.NDArray[float] = None,
@@ -2991,6 +2995,8 @@ class Radtrans:
                     A dictionary of the 'b' parameter values for each included cloud species and for each atmospheric
                     layer, formatted as the kzz argument. This is the width of the hansen distribution normalized by
                     the particle area (1/cloud_hansen_a^2)
+                cloud_particle_number_density_grid (Optional[dict]):
+                    EXPERIMENTAL
                 clouds_particles_porosity_factor (Optional[dict]):
                     A dictionary of porosity factors depending on the cloud species. This can be useful when opacities
                     are calculated using the Distribution of Hollow Spheres (DHS) method.
@@ -3155,6 +3161,7 @@ class Radtrans:
                 cloud_particles_radius_distribution=cloud_particles_radius_distribution,
                 cloud_hansen_a=cloud_hansen_a,
                 cloud_hansen_b=cloud_hansen_b,
+                cloud_particle_number_density_grid=cloud_particle_number_density_grid,
                 clouds_particles_porosity_factor=clouds_particles_porosity_factor,
                 cloud_f_sed=cloud_f_sed,
                 eddy_diffusion_coefficients=eddy_diffusion_coefficients,
@@ -3523,6 +3530,7 @@ class Radtrans:
             cloud_particles_radius_distribution: str = 'lognormal',
             cloud_hansen_a: float = None,
             cloud_hansen_b: float = None,
+            cloud_particle_number_density_grid: dict[str, np.ndarray[float]] = None,
             clouds_particles_porosity_factor: dict[str, float] = None,
             cloud_f_sed: float = None,
             eddy_diffusion_coefficients: float = None,
@@ -3596,6 +3604,8 @@ class Radtrans:
                     included cloud species and for each atmospheric layer,
                     formatted as the kzz argument. This is the width of the hansen
                     distribution normalized by the particle area (1/cloud_hansen_a^2)
+                cloud_particle_number_density_grid (Optional[dict]):
+                    EXPERIMENTAL
                 clouds_particles_porosity_factor (Optional[dict]):
                     A dictionary of porosity factors depending on the cloud species. This can be useful when opacities
                     are calculated using the Distribution of Hollow Spheres (DHS) method.
@@ -3689,6 +3699,7 @@ class Radtrans:
             cloud_particles_radius_distribution=cloud_particles_radius_distribution,
             cloud_hansen_a=cloud_hansen_a,
             cloud_hansen_b=cloud_hansen_b,
+            cloud_particle_number_density_grid=cloud_particle_number_density_grid,
             clouds_particles_porosity_factor=clouds_particles_porosity_factor,
             return_cloud_contribution=return_cloud_contribution,
             additional_absorption_opacities_function=additional_absorption_opacities_function,
