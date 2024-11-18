@@ -3708,6 +3708,8 @@ class Radtrans:
             target_pressure=target_pressure
         )
 
+        print(np.shape(opacities))
+
         # Start filling additional outputs here to get rid of unnecessary variables ASAP
         additional_outputs = {}
 
