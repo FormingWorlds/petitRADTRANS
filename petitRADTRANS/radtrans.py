@@ -1366,6 +1366,97 @@ class Radtrans:
         return _cloud_absorption_opacities, _cloud_scattering_opacities, cloud_anisotropic_fraction
 
     @staticmethod
+    def _compute_cloud_grid_particles_distribution_opacities(
+            atmosphere_densities,
+            cloud_particle_number_density_grid,
+            clouds_particles_densities,
+            cloud_particles_radii_bins,
+            cloud_particles_radii,
+            clouds_absorption_opacities,
+            clouds_scattering_opacities,
+            clouds_particles_asymmetry_parameters,
+            pressures,
+            target_particle_radii,
+            target_pressure
+    ):
+        r"""
+
+        Args:
+            atmosphere_densities:
+                Density of the atmosphere at each of its layer
+            cloud_particle_number_density_grid:
+                Output from cloud lognormal EXPERIMENTAL
+            clouds_particles_densities:
+                Density of each cloud particles
+            cloud_particles_radii_bins:
+                Bins of the particles cloud radii grid
+            cloud_particles_radii:
+                Particles cloud radii grid
+            clouds_absorption_opacities:
+                Cloud absorption opacities (radius grid, wavelength grid, clouds)
+            clouds_scattering_opacities:
+                Cloud scattering opacities (radius grid, wavelength grid, clouds)
+            clouds_particles_asymmetry_parameters:
+                Cloud particles asymmetry parameters (radius grid, wavelength grid, clouds)
+
+        Returns:
+
+        """
+        dn_dr = cloud_particle_number_density_grid  # (n_radii, n_layers, n_clouds)
+
+        integrand_scale = (  # (n_radii, n_layers, n_clouds)
+                (4.0 * np.pi / 3.0)
+                * cloud_particles_radii[:, None, None] ** 3
+                * clouds_particles_densities
+                * dn_dr
+        )
+
+        integrand_absorption = integrand_scale[:, None] * clouds_absorption_opacities[:, :, None]
+        integrand_scattering = integrand_scale[:, None] * clouds_scattering_opacities[:, :, None]
+        integrand_anisotropy = integrand_scattering * (1.0 - clouds_particles_asymmetry_parameters[:, :, None])
+
+        if target_pressure is not None:
+            target_pressure = [tp * 1e6 for tp in target_pressure]  # bar to cgs
+            target_particle_radii = [tr * 1e-4 for tr in target_particle_radii]  # cm to microns
+
+            disabled_bins = [(np.abs(cloud_particles_radii_bins - tr)).argmin() for tr in target_particle_radii]
+            in_layer = [(np.abs(pressures - tp)).argmin() for tp in target_pressure]
+
+            disabled_bins = set(disabled_bins)
+            in_layer = set(in_layer)
+
+            block = np.zeros_like(integrand_scale)
+            for bin_index in range(len(cloud_particles_radii)):
+                for layer_index in range(dn_dr.shape[1]):
+                    if bin_index in disabled_bins and layer_index in in_layer:
+                        block[bin_index][layer_index] = 0
+                    else:
+                        block[bin_index][layer_index] = 1
+
+            integrand_scale *= block
+            integrand_absorption *= block[:, None]
+            integrand_scattering *= block[:, None]
+            integrand_anisotropy *= block[:, None]
+
+        widths = np.diff(cloud_particles_radii_bins)[:, None, None, None]  # (n_radii, 1, 1, 1)
+
+        _cloud_absorption_opacities = np.sum(integrand_absorption * widths, axis=(0, 3))  # (n_wavelengths, n_layers)
+        _cloud_scattering_opacities = np.sum(integrand_scattering * widths, axis=(0, 3))  # (n_wavelengths, n_layers)
+        cloud_anisotropic_fraction = np.sum(integrand_anisotropy * widths, axis=(0, 3))  # (n_wavelengths, n_layers)
+
+        cloud_anisotropic_fraction = np.true_divide(
+            cloud_anisotropic_fraction,
+            _cloud_scattering_opacities,
+            out=np.zeros_like(_cloud_scattering_opacities),
+            where=_cloud_scattering_opacities > 1e-200,
+        )
+
+        _cloud_absorption_opacities = _cloud_absorption_opacities / atmosphere_densities
+        _cloud_scattering_opacities = _cloud_scattering_opacities / atmosphere_densities
+
+        return _cloud_absorption_opacities, _cloud_scattering_opacities, cloud_anisotropic_fraction
+
+    @staticmethod
     def _compute_cloud_opacities(pressures, temperatures, frequency_bins_edges,
                                  cloud_species_mass_fractions, mean_molar_masses, reference_gravity,
                                  cloud_particle_radius_distribution_std, clouds_loaded_opacities,
@@ -1374,6 +1465,7 @@ class Radtrans:
                                  cloud_particles_mean_radii=None,
                                  cloud_particles_radius_distribution="lognormal",
                                  cloud_hansen_a=None, cloud_hansen_b=None,
+                                 cloud_particle_number_density_grid=None,
                                  clouds_particles_porosity_factor=None,
                                  photospheric_cloud_optical_depths=None,
                                  return_cloud_contribution=False,
@@ -1395,6 +1487,7 @@ class Radtrans:
             cloud_particles_radius_distribution:
             cloud_hansen_a:
             cloud_hansen_b:
+            cloud_particle_number_density_grid:
             return_cloud_contribution:
 
         Returns:
@@ -1448,7 +1541,7 @@ class Radtrans:
                 _cloud_particles_mean_radii[:, i_spec] = cloud_hansen_a[cloud_name]
 
         # Calculate cloud opacities
-        if cloud_particles_mean_radii is not None or cloud_hansen_a is not None:
+        if cloud_particles_mean_radii is not None or cloud_hansen_a is not None or cloud_particle_number_density_grid is not None:
             if cloud_particles_radius_distribution == "lognormal":
                 (clouds_total_absorption_opacities, clouds_total_scattering_opacities,
                  cloud_scattering_reduction_factor) = \
@@ -1467,6 +1560,23 @@ class Radtrans:
                         target_particle_radii=target_particle_radii,
                         target_pressure=target_pressure
                     )
+
+            elif cloud_particle_number_density_grid is not None:
+                (clouds_total_absorption_opacities, clouds_total_scattering_opacities,
+                 cloud_scattering_reduction_factor) = \
+                    Radtrans._compute_cloud_grid_particles_distribution_opacities(
+                        atmosphere_densities=atmospheric_densities,
+                        cloud_particle_number_density_grid=cloud_particle_number_density_grid,
+                        clouds_particles_densities=_cloud_particles_density,
+                        cloud_particles_radii=clouds_loaded_opacities['particles_radii'],
+                        clouds_absorption_opacities=clouds_loaded_opacities['absorption_opacities'],
+                        clouds_scattering_opacities=clouds_loaded_opacities['scattering_opacities'],
+                        clouds_particles_asymmetry_parameters=clouds_loaded_opacities['particles_asymmetry_parameters'],
+                        pressures=pressures,
+                        target_particle_radii=target_particle_radii,
+                        target_pressure=target_pressure
+                    )
+
             else:
                 (clouds_total_absorption_opacities, clouds_total_scattering_opacities,
                  cloud_scattering_reduction_factor) = \
