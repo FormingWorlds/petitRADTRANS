@@ -1315,8 +1315,6 @@ class Radtrans:
             * np.exp(-diff ** 2 / (2.0 * np.log(cloud_particles_distribution_std) ** 2))
         )
 
-        np.save('/Users/a-stauffenberg/Desktop/On_Off_plots/ParticlesMatter/log_normal/lognormal_grid.npy', dn_dr)
-
         integrand_scale = (  # (n_radii, n_layers, n_clouds)
                 (4.0 * np.pi / 3.0)
                 * cloud_particles_radii[:, None, None] ** 3
@@ -1372,6 +1370,7 @@ class Radtrans:
     @staticmethod
     def _compute_cloud_opacities_using_particle_size_grid(
             atmosphere_densities,
+            clouds_mass_fractions,
             cloud_particle_number_density_grid,
             clouds_particles_densities,
             cloud_particles_radii_bins,
@@ -1388,6 +1387,8 @@ class Radtrans:
         Args:
             atmosphere_densities:
                 Density of the atmosphere at each of its layer
+            clouds_mass_fractions:
+                Mass fractions of each cloud at each atmospheric layer
             cloud_particle_number_density_grid:
                 Output from cloud lognormal EXPERIMENTAL
             clouds_particles_densities:
@@ -1406,6 +1407,10 @@ class Radtrans:
         Returns:
 
         """
+        for i_spec, cloud in enumerate(clouds_mass_fractions):
+            if isinstance(cloud_particle_number_density_grid, dict):  # is either dictionary
+                cloud_particle_number_density_grid = cloud_particle_number_density_grid[cloud]
+
         dn_dr = cloud_particle_number_density_grid  # (n_radii, n_layers, n_clouds)
 
         integrand_scale = (  # (n_radii, n_layers, n_clouds)
@@ -1548,11 +1553,11 @@ class Radtrans:
         if (cloud_particles_mean_radii is not None or cloud_hansen_a is not None or
                 cloud_particle_number_density_grid is not None):
             if cloud_particle_number_density_grid is not None:
-                # Priority 1: Handle cloud_particle_number_density_grid
                 (clouds_total_absorption_opacities, clouds_total_scattering_opacities,
                  cloud_scattering_reduction_factor) = \
                     Radtrans._compute_cloud_opacities_using_particle_size_grid(
                         atmosphere_densities=atmospheric_densities,
+                        clouds_mass_fractions=cloud_species_mass_fractions,
                         cloud_particle_number_density_grid=cloud_particle_number_density_grid,
                         clouds_particles_densities=_cloud_particles_density,
                         cloud_particles_radii_bins=clouds_loaded_opacities['particles_radii_bins'],
@@ -1566,7 +1571,6 @@ class Radtrans:
                     )
 
             elif cloud_particles_radius_distribution == "lognormal":
-                # Priority 2: Handle lognormal particle distribution
                 (clouds_total_absorption_opacities, clouds_total_scattering_opacities,
                  cloud_scattering_reduction_factor) = \
                     Radtrans._compute_cloud_log_normal_particles_distribution_opacities(
@@ -1586,7 +1590,6 @@ class Radtrans:
                     )
 
             elif cloud_particles_mean_radii is not None or cloud_hansen_a is not None:
-                # Priority 3: Handle Hansen opacities (default case)
                 (clouds_total_absorption_opacities, clouds_total_scattering_opacities,
                  cloud_scattering_reduction_factor) = \
                     fcore.compute_cloud_hansen_opacities(
@@ -1637,6 +1640,7 @@ class Radtrans:
                 (clouds_total_absorption_opacities, clouds_total_scattering_opacities,
                  cloud_scattering_reduction_factor) = Radtrans._compute_cloud_opacities_using_particle_size_grid(
                         atmosphere_densities=atmospheric_densities,
+                        clouds_mass_fractions=cloud_species_mass_fractions,
                         cloud_particle_number_density_grid=cloud_particle_number_density_grid,
                         clouds_particles_densities=_cloud_particles_density,
                         cloud_particles_radii_bins=clouds_loaded_opacities['particles_radii_bins'],
