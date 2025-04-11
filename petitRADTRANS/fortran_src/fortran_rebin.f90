@@ -1,8 +1,6 @@
 ! """
-! Utility function to rebin synthetic spectrum to data spectrum for the petitRADTRANS radiative transfer package.
+! Utility functions to rebin synthetic spectrum to data spectrum for the petitRADTRANS radiative transfer package.
 ! """
-
-
 module rebin_utils
     ! """
     ! Useful functions for rebinning.
@@ -182,8 +180,8 @@ module fortran_rebin
                 rebinned_spectrum &
             )
         end subroutine rebin_spectrum
-    
-        
+
+
         subroutine rebin_spectrum_bin(input_wavelengths, input_spectrum, rebinned_wavelengths, bin_widths, &
                                       n_rebin, n_wavelengths, rebinned_spectrum)
             use rebin_utils, only: rebinning_interpolation, write_input_size_error, write_out_of_bounds_error
@@ -196,14 +194,14 @@ module fortran_rebin
             double precision, intent(out) :: rebinned_spectrum(n_rebin)
             ! internal
             double precision :: rebin_bin_low(n_rebin), rebin_bin_high(n_rebin)
-            
+
             ! Check output array size
             if (n_rebin < 2) then
                 call write_input_size_error(n_rebin, rebinned_spectrum)
 
                 return
             end if
-    
+
             rebinned_spectrum = 0d0
 
             ! Get bin boundaries
@@ -221,7 +219,7 @@ module fortran_rebin
 
                 return
             end if
-    
+
             call rebinning_interpolation(&
                 input_wavelengths, input_spectrum, rebin_bin_low, rebin_bin_high, n_rebin, n_wavelengths, &
                 rebinned_spectrum &

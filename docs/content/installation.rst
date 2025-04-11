@@ -8,6 +8,7 @@ To install petitRADTRANS, without retrievals, you need to install:
 
 - Python 3.9+,
 - a fortran compiler, for example ``gfortran``.
+- to use the automatic data download feature, ``chromium`` [*]_.
 
 **Running retrievals:** read the :ref:`MultiNest installation instructions<retrievalsSection>`.
 
@@ -17,16 +18,16 @@ On Linux, install Python and the fortran compiler with:
 
 .. code-block:: bash
 
-    sudo apt-get install python python-pip gfortran
+    sudo apt-get install python python-pip gfortran chromium
 
 On some distributions, ``python`` may need to be replaced with ``python3``.
 
-.. Note:: A general Python recommendation is to use a Python virtual environment such as `venv <https://docs.python.org/3/library/venv.html>`_ or `conda <https://docs.anaconda.com/free/anaconda/install/index.html>`_, to prevent potential conflicts.
+.. Note:: A general Python recommendation is to use a Python virtual environment such as `venv <https://docs.python.org/3/library/venv.html>`_ (recommended) or `conda <https://docs.anaconda.com/free/anaconda/install/index.html>`_, to prevent potential conflicts.
 
 Mac OS
 ------
 
-.. important:: On Mac, it is highly recommended to use a Python virtual environment such as `venv <https://docs.python.org/3/library/venv.html>`_ or `conda <https://docs.anaconda.com/free/anaconda/install/index.html>`_, to prevent potential conflicts.
+.. important:: On Mac, it is highly recommended to use a Python virtual environment such as `venv <https://docs.python.org/3/library/venv.html>`_ (recommended) or `conda <https://docs.anaconda.com/free/anaconda/install/index.html>`_, to prevent potential conflicts.
 
 Recommended: using homebrew
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -54,7 +55,7 @@ Then, install a fortran compiler with:
 Using gfortran disk images
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. warning:: While using **homebrew should be the preferred method** for installing external libraries on Mac, alternative methods exist. Use them at your own risk.
+.. warning:: While using **homebrew is the preferred method** for installing external libraries on Mac, alternative methods exist. Use them at your own risk.
 
 François-Xavier Coudert's `github repository <https://github.com/fxcoudert/gfortran-for-macOS>`_ provides gfortran disk images (.dmg) with which you can install gfortran like any other program for Mac, through an installation wizard. Both Apple Silicon (M1, M2, M3) and Intel chip versions are available.
 
@@ -72,7 +73,8 @@ Follow the WSL installation instructions from the previous link, then install pR
 Native installation prerequisites
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 1. Get a fortran compiler through, for example, `MSYS2 <https://www.msys2.org/>`_ or `Visual Studio <https://visualstudio.microsoft.com/>`_.
-2. Go to the `Python website <https://www.python.org/>`_, then download and execute the Python installer.
+2. If you already have a `Chromium-based browser <https://en.wikipedia.org/wiki/Chromium_(web_browser)#Browsers_based_on_Chromium>`_, you can skip this step. Otherwise, download Chromium, for example from its `official website <https://download-chromium.appspot.com/>`_.
+3. Go to the `Python website <https://www.python.org/>`_, then download and execute the Python installer.
 
 .. warning:: It is **not** possible to run parallel (fast) retrievals with a native Windows installation (see the :ref:`MultiNest section<multinest_windows>`).
 
@@ -90,7 +92,7 @@ Prerequisite for retrievals: MultiNest
 
 If you want to use pRT's retrieval package, you need to install the PyMultiNest package:
 
-1. Follow the instructions provided on the `PyMultiNest website <https://johannesbuchner.github.io/PyMultiNest/install.html#building-the-libraries>`_.
+1. Follow the instructions provided on the `PyMultiNest website <https://johannesbuchner.github.io/PyMultiNest/install.html#prerequisites-for-building-the-libraries>`_.
 2. Link the resulting library files by including the ``MultiNest/lib/`` to your ``LD_LIBRARY_PATH``. This can be done by adding this line at the end of your environment setup file ".bash_profile", ".bashrc", or ".zshrc" (depending on your operating system and shell type):
 
     .. code-block:: bash
@@ -98,6 +100,8 @@ If you want to use pRT's retrieval package, you need to install the PyMultiNest 
         LD_LIBRARY_PATH=/path/to/MultiNest/lib:$LD_LIBRARY_PATH
 
 .. warning:: **Using Mac+Anaconda:** see the :ref:`troubleshooting section<mac_anaconda_issue>`.
+
+.. _PreInstallSection:
 
 Pre-installation packages
 =========================
@@ -124,7 +128,7 @@ To be able to use the retrieval module, execute:
 
 .. code-block:: bash
 
-    pip install petitRADTRANS[retrieval] --no-build-isolation
+    pip install "petitRADTRANS[retrieval]" --no-build-isolation
 
 Compiling pRT from source
 =========================
@@ -143,7 +147,7 @@ Compiling pRT from source
 
     .. code-block:: bash
 
-        pip install .[retrieval] --no-build-isolation
+        pip install ".[retrieval]" --no-build-isolation
 
 Setting up the input_data directory
 ===================================
@@ -162,11 +166,18 @@ Testing the installation
 Open a new terminal window. Then open python and type:
 
 .. code-block:: python
-		
+
     from petitRADTRANS.radtrans import Radtrans
     radtrans = Radtrans(line_species=['CH4'])
 
-If you have not already manually downloaded the CH4 correlated-k opacities, this should trigger the download of the opacity file.
+If you have not already manually downloaded the CH4 correlated-k opacities, this should trigger the download of the opacity file. You may be prompted with the following message:
+
+.. code-block:: bash
+
+    More than one file detected in <long/path> and no default file set for this path in petitRADTRANS' configuration
+    Please select one of the files in the list below by typing the corresponding integer:
+
+In that case, simply choose a file among the one listed under the message, type the corresponding integer, then press "Enter". More information is available in the `tutorial <notebooks/getting_started.html#Loading-opacities>`_.
 
 The last lines of the output should be:
 
@@ -203,6 +214,36 @@ Try these fixes in that order:
 4. If you are on Mac, and do not use Homebrew, the error may be related with your setup. Carefully check for libraries versions, dependencies, and duplicate installations.
 5. In last resort, you can add the ``--no-clean`` flag to the installation command. Beware however: this will create a temporary directory that will not be removed from your system, taking space on your disk. Each new installation with this flag will create a new temporary directory, but will **not** remove the previous one. You may need to perform manual cleaning to free space on your disk.
 
+Minimum Python version not available
+------------------------------------
+In some Linux distro where the minimum Python version necessary to run petitRADTRANS is not available, it may be necessary to install a newer version from an alternative repository, e.g. the `deadsnakes repository <https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa>`_.
+
+In that case, execute the following (replace ``python3.x`` with the desired Python version, e.g. ``python3.13``):
+
+.. code-block:: bash
+
+    sudo add-apt-repository ppa:deadsnakes/ppa
+    sudo apt-get update
+    sudo apt-get install pkg-config
+    sudo apt-get install python3.x
+    sudo apt-get install python3.x-dev
+
+To prevent further Python-related issues with your operating system, which can be as severe as `completely breaking it <https://github.com/python/cpython/issues/102134#issuecomment-1445428402>`_, you then need to create a virtual environment (replace ``/path/to/my_venv`` with the path where you want to install your virtual environment):
+
+.. code-block:: bash
+
+    sudo apt-get install python3.x-venv
+    python3.x -m venv /path/to/my_venv
+    source /path/to/my_venv/bin/activate
+
+Then, follow the :ref:`standard installation instructions<PreInstallSection>`. You may encounter further issues installing third-party packages like ``setuptools`` or ``mpi4py``. In that case, you can execute, e.g.:
+
+.. code-block:: bash
+
+    pip install -U setuptools cython
+
+The installation should then proceed without issue.
+
 .. _mac_anaconda_issue:
 
 Mac+Anaconda known issue with MultiNest
@@ -214,7 +255,15 @@ Linking the MultiNest libraries the usual way may not work on a Mac when using `
     conda install mpi4py
 
 In case of troubles, if you use Homebrew, executing ``brew upgrade``, ``brew update``, then following the instructions of ``brew doctor`` may help. If you do not use Homebrew, the error may be related with your setup. Carefully check for libraries versions, dependencies, and duplicate installations.
+A common error with Apple silicon when trying to run retrievals is ``AttributeError: dlsym(RTLD_DEFAULT, run): symbol not found``. This is a problem inherited from ``pymultinest``, and to solve it you should add the following lines of code before importing pRT or ``pymultinest``.
+
+.. code-block:: bash
+
+    import os
+    os.environ["DYLB_LIBRARY_PATH"] = "/path/to/Multinest/lib"
 
 Other issues
 ------------
-You can take a look at the solved issues `here <https://gitlab.com/mauricemolli/petitRADTRANS/-/issues>`_. If you do not find an helpful answer there, do not hesitate to open a new issue.
+You can take a look at the solved issues `here <https://gitlab.com/mauricemolli/petitRADTRANS/-/issues>`_. If you do not find an helpful answer there, do not hesitate to `open a new issue <contributing.html#suggestions-and-reporting-issues>`_.
+
+.. [*] Why Chromium? To download data from Keeper, pRT uses ``selenium`` to load webpages through a browser. When the code for this interface was written, Chromium was the only mainstream browser that could be used `without any windows opening <https://en.wikipedia.org/wiki/Headless_browser>`_. Chromium is also `free and open-source <https://en.wikipedia.org/wiki/Chromium_(web_browser)>`_. In addition, it is the base of `many widespread browsers <https://en.wikipedia.org/wiki/Chromium_(web_browser)#Browsers_based_on_Chromium>`_.

@@ -1,16 +1,13 @@
-"""
-This file creates a default plotting style for all pRT plots
+"""This module creates a default plotting style for all pRT plots
 
 All of these can be changed when calling most plotting functions.
 This will affect the matplotlib rcParams, which can be reset to
 the default values after pRT is finished.
 """
-
 import os
 
 import matplotlib
 import matplotlib.pyplot as plt
-
 
 __tiny_figure_font_size = 40  # 0.5 text width 16/9
 __small_figure_font_size = 22  # 0.25 text width
@@ -157,10 +154,9 @@ def set_petitradtrans_plot_style():
     axes = {'labelsize': 26,
             'prop_cycle': matplotlib.cycler(color=prt_colours),
             'titlesize': 32,
-            'linewidth': 2}
+            'linewidth': 3}
     figure = {'titlesize': 32,
               'figsize': (16, 10),
-              'dpi': 300,
               'autolayout': True}
     legend = {'fancybox': True,
               'fontsize': 24}

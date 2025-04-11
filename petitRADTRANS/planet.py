@@ -1,4 +1,5 @@
-"""Planet object."""
+"""Stores the Planet object.
+"""
 import os
 import warnings
 
@@ -1727,7 +1728,7 @@ class Planet:
                 directory = os.path.dirname(filename_vot)
 
                 if not os.path.isdir(directory):
-                    os.mkdir(directory)
+                    os.makedirs(directory)
 
                 cls.download_planet_from_nasa_exoplanet_archive(name)
             else:

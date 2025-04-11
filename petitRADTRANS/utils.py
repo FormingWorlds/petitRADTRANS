@@ -7,6 +7,7 @@ import warnings
 
 import h5py
 import numpy as np
+import numpy.typing as npt
 
 
 class LockedDict(dict):
@@ -125,6 +126,16 @@ def check_all_close(a, b, **kwargs):
     elif a is None:
         if b is not None:
             raise AssertionError(f"a is None but b is {b}")
+    elif isinstance(b, list):
+        if isinstance(b[0], str):
+            for i, value in enumerate(a):
+                if value != b[0]:
+                    raise AssertionError(f"'{a}' != '{b}'")
+        elif not np.allclose(a, b, **kwargs):
+            raise AssertionError(f"a and b are not close enough\n"
+                                 f"{a=}\n"
+                                 f"{b=}\n"
+                                 f"{kwargs}")
     else:
         if not np.allclose(a, b, **kwargs):
             raise AssertionError(f"a and b are not close enough\n"
@@ -297,7 +308,7 @@ def hdf52dict(hdf5_file):
     return dictionary
 
 
-def intersection_indices(array1, array2):
+def intersection_indices(array1: npt.NDArray, array2: npt.NDArray):
     """Get the indices of the intersection between two sorted arrays in increasing order.
 
     For example, if array1 is [0.1, ..., 0.3, ..., 3] and array2 is interval [0.3, ..., 3, ..., 28], then the output
@@ -322,6 +333,17 @@ def intersection_indices(array1, array2):
     )
 
     return indices1, indices2
+
+
+def list_str2str(list_str, separator: str = ", "):
+    """Convert a list of strings into a string in which each input string is quoted and separated by 'separator'.
+    Example:
+        >>> list_str2str(('AA', 'BBB', 'C'))
+        >>> "'AA', 'BBB', 'C'"
+    """
+    separator = "'" + separator + "'"
+
+    return "'" + separator.join(list_str) + "'"
 
 
 def load_csv(file, **kwargs):

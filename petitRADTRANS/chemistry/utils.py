@@ -4,11 +4,11 @@ import warnings
 
 import numpy as np
 import numpy.typing as npt
+from scipy.interpolate import PchipInterpolator
 
-from petitRADTRANS._input_data_loader import get_species_basename, get_species_isotopologue_name
 from petitRADTRANS.chemistry.prt_molmass import (element_symbol2element_number, get_species_molar_mass,
                                                  get_species_elements)
-
+from petitRADTRANS.opacities.opacities import Opacity
 
 _solar_elemental_abundances = (  # Source: Lodders 2020 https://arxiv.org/abs/1912.00844
     # atomic number, log10 elemental abundance, uncertainty
@@ -149,29 +149,252 @@ def _compute_z_ratios(elemental_abundances: dict[int, float],
     return metal_abundances / non_metal_abundances
 
 
-def compute_mean_molar_masses(abundances):
-    """Calculate the mean molecular weight in each layer.
+def abundance_curvature_prior(press, abundance, gamma):
+    """
+    Compute a curvature prior for an abundance-pressure profile.
+
+    This function calculates a curvature prior for an abundance-pressure profile,
+    penalizing deviations from a smooth, low-curvature profile, based on Line 2015
+
+    Args:
+        press (array-like): An array or list of pressure data points.
+        abundance (array-like): An array or list of abundance data points.
+        gamma (float): The curvature penalization factor.
+
+    Returns:
+        float: The curvature prior value.
+    """
+    weighted_abund_prior = -0.5 * np.sum((abundance[2:] - 2 * abundance[1:-1] + abundance[:-2]) ** 2) / gamma
+    weighted_abund_prior -= 0.5 * np.log(2 * np.pi * gamma)
+
+    return weighted_abund_prior
+
+
+def compute_pressure_nodes(pressure_array, mode='even', nnodes: int | None = 0, points_list=None):
+    """
+    Compute the location of nodes for a spline or step profile in pressure space.
+
+    If mode is even, the nodes are evenly spaced in log pressure, with a total of
+    nnodes + 2 points (including the top and bottom of the atmospheres).
+    If mode is relative, then points list is returned.
+
+    Args:
+        pressure_array (array-like): An array or list of pressure levels which is used to calculate the spectrum.
+        mode (std): 'even' (evenly spaced), 'relative' (points list is monotonically decreasing in log P) or 'set'
+            (points list is user-defined spline nodes)
+        nnodes (int): Number of intermediate spline nodes (not counting top and bottom of atmosphere)
+        points_list (array_like): if relative, list of differences in log P between each node. If set.
+            then this is a user-defined list of spline points, and MUST include top and bottom pressure
+            values.
+
+    Returns:
+        array: an array of pressure nodes.
+    """
+    if nnodes is None:
+        if mode == 'even':
+            raise ValueError(
+                "'nnodes' must be an integer, but is set to None"
+            )
+        nnodes = 0
+
+    if mode == 'even':
+        return np.linspace(
+            np.log10(pressure_array[0]),
+            np.log10(pressure_array[-1]),
+            int(nnodes) + 2)
+    elif mode == 'relative':
+        # points_list is a list of delta log Pressures < 0.
+        # This enforces a monotonically decreasing list of pressure nodes
+        pressures = [np.log10(pressure_array[0])]
+        min_pressure = np.log10(pressure_array[-1])
+        for i, node in enumerate(points_list):
+            # pressures goes from low to high
+            _next = pressures[i] + node
+            pressures.append(min(_next, min_pressure))
+        pressures.append(min_pressure)
+        return np.array(pressures)
+    elif mode == 'set':
+        return np.array(points_list)
+    else:
+        warnings.warn("Incorrect mode specified to define pressure spline nodes! Returning full pressure array!")
+        return pressure_array
+
+
+def compute_mean_molar_masses(abundances: dict[str, npt.NDArray], mode: str = 'mmr'):
+    """Calculate the mean molecular weight in each layer, from mass fractions or volume mixing ratios.
+
+    The calculation is slightly different for mass fractions and volume mixing ratios. By default, this function assumes
+    that the abundances are mass fractions. To calculate the mean molar masses from volume mixing ratios, set the 'mode'
+    argument to 'vmr'.
 
     Args:
         abundances : dict
-            dictionary of abundance arrays, each array must have the shape of the pressure array used in pRT,
-            and contain the abundance at each layer in the atmosphere.
+            Dictionary of mass fraction or volume mixing ratio arrays, each array must have the shape of the pressure
+            array used in pRT, and contain the abundance at each layer in the atmosphere.
+        mode : str
+            Can be 'mmr' or 'vmr', to calculate the mean molar masses from mass fraction or volume mixing ratios,
+            respectively.
     """
     mean_molar_masses = (sys.float_info.min
                          * np.ones_like(abundances[list(abundances.keys())[0]]))  # prevent division by 0
 
-    for key in abundances.keys():
-        if '(s)' in key or '(l)' in key:  # ignore clouds
+    for species, abundance in abundances.items():
+        if '(s)' in species or '(l)' in species:  # ignore clouds
             continue
 
-        # exo_k resolution
-        spec = key.split(".R")[0]
-        mean_molar_masses += abundances[key] / get_species_molar_mass(spec)
+        _species = species.split(".R")[0]  # remove resolving power string (TODO import it from opacities)
 
-    return 1.0 / mean_molar_masses
+        if mode == 'mmr':
+            mean_molar_masses += abundance / get_species_molar_mass(_species)
+        elif mode == 'vmr':
+            mean_molar_masses += abundance * get_species_molar_mass(_species)
+        else:
+            raise ValueError(
+                f"'mode' can be 'mmr' or 'vmr', but was '{mode}'"
+            )
+
+    if mode == 'mmr':
+        mean_molar_masses = 1 / mean_molar_masses
+
+    return mean_molar_masses
 
 
-def fill_atmosphere(mass_fractions: dict[str, npt.NDArray[float]], filling_species: dict
+def compute_mean_molar_masses_from_volume_mixing_ratios(volume_mixing_ratios):
+    """Calculate the mean molecular weight in each layer from volume mixing ratios.
+
+    Args:
+        volume_mixing_ratios : dict
+            dictionary of volume mixing ratios arrays, each array must have the shape of the pressure array used in pRT,
+            and contain the abundance at each layer in the atmosphere.
+    """
+    mean_molar_masses = np.zeros_like(list(volume_mixing_ratios.values())[0])
+
+    for species, volume_mixing_ratio in volume_mixing_ratios.items():
+        if ('(s)' in species) or ('(l)' in species):  # ignore clouds
+            continue
+
+        spec = species.split(".R")[0]
+        mean_molar_masses += volume_mixing_ratio * get_species_molar_mass(spec)
+
+    return mean_molar_masses
+
+
+def cubic_spline_profile(pressure_array, pressure_nodes, abundance_points, gamma, nnodes=0):
+    """
+    Compute a cubic spline profile for abundance based on pressure points.
+
+    This function computes a cubic spline profile for abundance using
+    pressure and abundance data points, along with a curvature prior.
+
+    Args:
+        pressure_array (array-like): An array or list of pressure levels which is used to calculate the spectrum.
+        pressure_nodes (array-like): An array or list of log pressure points at which the spline is fixed
+        abundance_points (array-like): An array or list of abundances for each pressure node.
+        gamma (float): A parameter controlling the curvature of the spline.
+        nnodes (int, optional): Number of nodes to use in the spline interpolation.
+
+    Returns:
+        tuple: A tuple containing two elements:
+            - interpolated_temps (array-like): Interpolated abundance values
+              based on the cubic spline.
+            - prior (array-like): Curvature prior values calculated for the spline.
+    """
+
+    try:
+        cs = PchipInterpolator(pressure_nodes,
+                               abundance_points)
+    except ValueError:
+        warnings.warn("Pressure array isn't monotonically increasing")
+        print(pressure_nodes)
+        return None, None
+
+    interpolated_abunds = 10**cs(np.log10(pressure_array))
+    prior = abundance_curvature_prior(pressure_array, interpolated_abunds, gamma)
+    return interpolated_abunds, prior
+
+
+def define_abundance_node_list(species_short_name, parameters):
+    """
+    Define the location of pressure nodes, allowing individual nodes to be
+    retrieved parameters.
+
+    If mode is even, the nodes are evenly spaced in log pressure, with a total of
+    nnodes + 2 points (including the top and bottom of the atmospheres).
+    If mode is relative, then points list is returned.
+
+    Args:
+        species_short_name (str): which molecular species does this apply to (each can be unique)
+        parameters (dict): dictionary of parameters used in a retrieval
+    Returns:
+        array: an array of pressure nodes
+    """
+    abundance_nodes = None
+    if f"{species_short_name}_n_abundance_nodes" in parameters.keys():
+        nnodes = parameters[f"{species_short_name}_n_abundance_nodes"].value
+        # Retrieve individual relative pressure node locations
+        abundance_nodes = [parameters[f"{species_short_name}_abundance_node_{i}"].value for i in range(nnodes)]
+
+    # Predefined list of pressure node locations
+    elif f"{species_short_name}_abundance_nodes" in parameters.keys():
+        abundance_nodes = parameters[f"{species_short_name}_abundance_nodes"].value
+    return abundance_nodes
+
+
+def define_pressure_node_list(pressure_array, species_short_name, parameters):
+    """
+    Define the location of pressure nodes, allowing individual nodes to be
+    retrieved parameters.
+
+    If mode is even, the nodes are evenly spaced in log pressure, with a total of
+    nnodes + 2 points (including the top and bottom of the atmospheres).
+    If mode is relative, then points list is returned.
+
+    Args:
+        pressure_array (array-like): An array or list of pressure levels which is used to calculate the spectrum.
+        species_short_name (str): which molecular species does this apply to (each can be unique)
+        parameters (dict): dictionary of parameters used in a retrieval
+    Returns:
+        array: an array of pressure nodes, can be used in calculate_pressure_nodes
+    """
+    pressure_interpolation_nodes = None
+
+    if f"{species_short_name}_n_pressure_nodes" in parameters.keys():
+        nnodes = parameters[f"{species_short_name}_n_pressure_nodes"].value
+        mode = parameters[f"{species_short_name}_interpolation_mode"].value
+
+        # Evenly spaced in log P
+        if mode == 'even':
+            pressure_interpolation_nodes = compute_pressure_nodes(
+                pressure_array,
+                mode=parameters[f"{species_short_name}_interpolation_mode"].value,
+                nnodes=parameters[f"{species_short_name}_n_pressure_nodes"].value,
+                points_list=None
+            )
+        # Retrieve individual relative pressure node locations
+        elif mode == 'relative':
+            pnodes = [parameters[f"{species_short_name}_pressure_node_{i}"].value for i in range(nnodes)]
+            pressure_interpolation_nodes = compute_pressure_nodes(
+                pressure_array,
+                mode=mode,
+                nnodes=None,  # TODO None is not handled in function, potential issue?
+                points_list=pnodes
+            )
+    # Predefined list of pressure node locations
+    elif f"{species_short_name}_pressure_nodes" in parameters.keys():
+        pressure_interpolation_nodes = compute_pressure_nodes(
+            pressure_array,
+            mode=parameters[f"{species_short_name}_interpolation_mode"].value,
+            nnodes=None,
+            points_list=parameters[f"{species_short_name}_pressure_nodes"].value
+        )
+    # Default to bottom and top of atmosphere
+    else:
+        pressure_interpolation_nodes = [np.log10(pressure_array[0]), np.log10(pressure_array[-1])]
+
+    return pressure_interpolation_nodes
+
+
+def fill_atmosphere(mass_fractions: dict[str, npt.NDArray[float]], filling_species: dict, fill_layer: int = 'all',
                     ) -> dict[str, npt.NDArray[float]]:
     """Fill an atmosphere with filling species, so that the sum of the mass fractions in all layers is 1.
 
@@ -183,22 +406,36 @@ def fill_atmosphere(mass_fractions: dict[str, npt.NDArray[float]], filling_speci
         filling_species:
             Dictionary with the filling species as keys and the weights of the mass fractions as values. Unweighted
             filling species are represented with None.
+        fill_layer:
+            If 'all', fill all layers and return the filled mass fractions at every layer.
+            If it is an integer, fill only the corresponding layer and return the mass fractions at that layer only.
     Returns:
         A dictionary of the mass fractions with the filling species. The sum of the mass fractions is 1.
     """
-    n_layers = list(mass_fractions.values())[0].size
     all_species = set(list(mass_fractions.keys()) + list(filling_species.keys()))
 
-    filled_mass_fractions = {
-        species: np.zeros(n_layers)
+    if fill_layer == 'all':
+        n_layers = list(mass_fractions.values())[0].size
+        layers = range(n_layers)
+    else:
+        layers = np.array([fill_layer])
+
+    filled_mass_fractions: dict[str, npt.NDArray[float]] = {
+        species: np.zeros(layers.size, dtype=float)
         for species in all_species
     }
 
-    for i in range(n_layers):
+    gas_mass_fractions = {
+        species: mass_fraction
+        for species, mass_fraction in mass_fractions.items()
+        if '(s)' not in species and '(l)' not in species  # ignore clouds
+    }
+
+    for i, layer_id in enumerate(layers):
         # Take mass fractions from the current layer
         mass_fractions_i = {
-            species: float(mass_fraction[i])
-            for species, mass_fraction in mass_fractions.items()
+            species: float(mass_fraction[layer_id])
+            for species, mass_fraction in gas_mass_fractions.items()
         }
 
         # Handle filling species special cases
@@ -208,7 +445,7 @@ def fill_atmosphere(mass_fractions: dict[str, npt.NDArray[float]], filling_speci
             if weights is None or isinstance(weights, str):
                 filling_species_i[species] = weights
             elif hasattr(weights, '__iter__'):
-                filling_species_i[species] = weights[i]
+                filling_species_i[species] = weights[layer_id]
             else:
                 filling_species_i[species] = weights
 
@@ -222,11 +459,16 @@ def fill_atmosphere(mass_fractions: dict[str, npt.NDArray[float]], filling_speci
         for species in mass_fractions_i:
             filled_mass_fractions[species][i] = mass_fractions_i[species]
 
+    # Re-add cloud mass fractions
+    for species, mass_fraction in mass_fractions.items():
+        if '(s)' in species or '(l)' in species:
+            filled_mass_fractions[species] = mass_fraction
+
     return filled_mass_fractions
 
 
-def fill_atmospheric_layer(mass_fractions: dict[str, float], filling_species: dict
-                           ) -> dict[str, float]:
+def fill_atmospheric_layer(mass_fractions: dict[str, float], filling_species: dict,
+                           sanity_check: bool = False) -> dict[str, float]:
     """Fill an atmospheric layer with filling species, so that the sum of the mass fractions is 1.
     The filling species values are weights that are used to fill the atmospheric layer following:
         X_i = w_i / sum(w) * X_f,
@@ -249,14 +491,16 @@ def fill_atmospheric_layer(mass_fractions: dict[str, float], filling_species: di
         filling_species:
             Dictionary with the filling species as keys and the weights of the mass fractions as values. Unweighted
             filling species are represented with None.
+        sanity_check:
+            If True, make a sanity check to ensure that the filling was consistently done.
     Returns:
         A dictionary of the mass fractions with the filling species. The sum of the mass fractions is 1.
     """
     for species, mass_fraction in mass_fractions.items():
-        if np.size(mass_fraction) > 1:
+        if hasattr(mass_fraction, '__iter__'):
             raise ValueError(
                 f"mass fractions values in one layer must be scalars, "
-                f"but mass fraction for species '{species}' was of size {np.size(mass_fraction)}"
+                f"but mass fraction for species '{species}' was an iterable of size {np.size(mass_fraction)}"
             )
 
     # Change nothing if no filling species given
@@ -309,20 +553,23 @@ def fill_atmospheric_layer(mass_fractions: dict[str, float], filling_species: di
             if species != last_species:
                 mass_fractions[species] = weight / sum_weights * mass_fraction_to_fill
             else:  # ensure that the sum is exactly 1 in spite of numerical errors
-                mass_fraction_from_weights = weight / sum_weights * mass_fraction_to_fill
                 mass_fractions[species] = 0.0
                 mass_fraction_from_subtraction = 1 - np.sum(np.array(list(mass_fractions.values())))
 
-                # Sanity check
-                if np.isclose(mass_fraction_from_weights, mass_fraction_from_subtraction, atol=1e-15, rtol=1e-12):
-                    mass_fractions[species] = mass_fraction_from_subtraction
-                else:
-                    raise ValueError(f"unexpected results when filling atmosphere\n"
-                                     f"A mass fraction of {mass_fraction_from_subtraction} is required to fill the "
-                                     f"atmosphere with species {last_species}, "
-                                     f"but from the parameters given, "
-                                     f"the calculated mass fraction is {mass_fraction_from_weights}.\n"
-                                     f"This is likely a coding error and not a user error.")
+                mass_fractions[species] = mass_fraction_from_subtraction
+
+                if sanity_check:
+                    mass_fraction_from_weights = weight / sum_weights * mass_fraction_to_fill
+
+                    if not np.isclose(
+                            mass_fraction_from_weights, mass_fraction_from_subtraction, atol=1e-15, rtol=1e-12
+                    ):
+                        raise ValueError(f"unexpected results when filling atmosphere\n"
+                                         f"A mass fraction of {mass_fraction_from_subtraction} is required to fill the "
+                                         f"atmosphere with species {last_species}, "
+                                         f"but from the parameters given, "
+                                         f"the calculated mass fraction is {mass_fraction_from_weights}.\n"
+                                         f"This is likely a coding error and not a user error.")
 
     return mass_fractions
 
@@ -418,6 +665,35 @@ def get_solar_elemental_abundances(keep_list: list[int] = None) -> dict[int, flo
     return dictionary
 
 
+def linear_spline_profile(pressure_array, pressure_nodes, abundance_points, gamma, nnodes=0):
+    """
+    Compute a linear spline profile for abundance based on pressure points.
+
+    This function computes a linear spline profile for abundance using
+    pressure and abundance data points, along with a curvature prior.
+
+    Args:
+        pressure_array (array-like): An array or list of pressure levels which is used to calculate the spectrum.
+        pressure_nodes (array-like): An array or list of log pressure points at which the spline is fixed
+        abundance_points (array-like): An array or list of abundances for each pressure node.
+        gamma (float): A parameter controlling the curvature of the spline.
+        nnodes (int, optional): Number of nodes to use in the spline interpolation.
+
+    Returns:
+        tuple: A tuple containing two elements:
+            - interpolated_temps (array-like): Interpolated abundance values
+              based on the linear spline.
+            - prior (array-like): Curvature prior values calculated for the spline.
+    """
+    interpolated_abunds = 10**np.interp(
+        np.log10(pressure_array),
+        pressure_nodes,
+        abundance_points
+        )
+    prior = abundance_curvature_prior(pressure_array, interpolated_abunds, gamma)
+    return interpolated_abunds, prior
+
+
 def mass_fractions2volume_mixing_ratios(mass_fractions, mean_molar_masses=None):
     """Convert mass fractions to volume mixing ratios.
 
@@ -474,13 +750,16 @@ def mass_fractions2metallicity(mass_fractions: dict[str, npt.NDArray[float]],
 
 
 def simplify_species_list(species_list: list) -> list:
-    species_basenames = [get_species_basename(species) for species in species_list]
-    species_isotopologue_names = [get_species_isotopologue_name(species) for species in species_list]
+    species_basenames = [
+        Opacity.get_species_base_name(species)
+        for species in species_list
+    ]
+    species_isotopologue_names = [Opacity.get_species_isotopologue_name(species) for species in species_list]
 
     for i, species in enumerate(species_isotopologue_names):
         # Use isotopologue name if species is not the main isotopologue
-        species_main_name = get_species_isotopologue_name(species=species_basenames[i])
-        species_natural_abundance_name = get_species_isotopologue_name(species=species_basenames[i] + '-NatAbund')
+        species_main_name = Opacity.get_species_isotopologue_name(species_basenames[i])
+        species_natural_abundance_name = Opacity.get_species_isotopologue_name(species_basenames[i] + '-NatAbund')
 
         if species != species_main_name and species != species_natural_abundance_name:
             species_basenames[i] = species
@@ -488,17 +767,55 @@ def simplify_species_list(species_list: list) -> list:
     return species_basenames
 
 
+def stepped_profile(pressure_array, transition_pressures, abundance_points):
+    """
+    Compute a stepped profile for abundance based on pressure points.
+
+    This function computes the steps for chemical abundance using
+    pressure and abundance data points, along with a curvature prior.
+
+    Args:
+        pressure_array (array-like): An array or list of pressure levels which is used to calculate the spectrum.
+        transition_pressures: # TODO complete docstring
+        abundance_points (array-like): An array or list of abundances for each pressure node.
+
+    Returns:
+        tuple: A tuple containing two elements:
+            - interpolated_temps (array-like): Interpolated abundance values
+              based on the linear spline.
+            - prior (array-like): Curvature prior values calculated for the spline.
+    """
+    abundance_profile = np.zeros_like(pressure_array)
+
+    # Assumes that the transition array has both the top and bottom pressure as well
+    # This is defined by calculate_pressure_nodes
+    nnodes = len(transition_pressures)-2
+    log_pressure = np.log10(pressure_array)
+    if len(abundance_points) != nnodes+1:
+        warnings.warn("Length of abundance array must be 1 greater than the length of pressures array!")
+        return np.nan*np.ones_like(pressure_array)
+    for i in range(nnodes):
+        # Only set using intermediate nodes
+        if i == 0:
+            abundance_profile[log_pressure >= transition_pressures[i+1]] = 10**abundance_points[i]
+        else:
+            abundance_profile[(log_pressure >= transition_pressures[i+1]) & (log_pressure < transition_pressures[i])] =\
+                10**abundance_points[i]
+    abundance_profile[log_pressure < transition_pressures[-2]] = 10**abundance_points[-1]
+    return abundance_profile
+
+
 def volume_mixing_ratios2mass_fractions(volume_mixing_ratios, mean_molar_masses=None):
-    """Convert mass fractions to volume mixing ratios.
+    """Convert volume mixing ratios to mass fractions.
 
     Args:
         volume_mixing_ratios : dict
             A dictionary of volume mixing ratios
         mean_molar_masses : numpy.ndarray
-            An array containing all mass fractions at each pressure level
+            An array containing the mean molecular weight at each pressure level
     """
     if mean_molar_masses is None:
-        mean_molar_masses = compute_mean_molar_masses(volume_mixing_ratios)
+        mean_molar_masses = compute_mean_molar_masses(volume_mixing_ratios, mode='vmr')
 
     mass_fractions = {}
 
