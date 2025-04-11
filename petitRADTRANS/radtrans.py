@@ -1271,6 +1271,7 @@ class Radtrans:
         This function integrates the cloud opacity through the different layers of the atmosphere to get the total
         optical depth, scattering and anisotropic fraction.
         # TODO optical depth or opacity?
+        # TODO complete docstring and vectorize on/off code
 
         author: Francois Rozet
 
@@ -1383,7 +1384,7 @@ class Radtrans:
             target_pressure
     ):
         r"""
-
+        # TODO complete docstring and vectorize on/off code
         Args:
             atmosphere_densities:
                 Density of the atmosphere at each of its layer
