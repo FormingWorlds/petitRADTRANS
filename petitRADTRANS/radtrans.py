@@ -1925,7 +1925,7 @@ class Radtrans:
             target_pressure
     ):
         r"""
-        # TODO complete docstring and vectorize on/off code
+        # TODO vectorize on/off code
         Args:
             atmosphere_densities:
                 Density of the atmosphere at each of its layer
@@ -1945,6 +1945,12 @@ class Radtrans:
                 Cloud scattering opacities (radius grid, wavelength grid, clouds)
             clouds_particles_asymmetry_parameters:
                 Cloud particles asymmetry parameters (radius grid, wavelength grid, clouds)
+            pressures:
+                Pressure array
+            target_particle_radii:
+                Target particle radii array
+            target_pressure:
+                Target pressure array
 
         Returns:
 
@@ -2098,14 +2104,15 @@ class Radtrans:
         # Calculate cloud opacities
         if (cloud_particles_mean_radii is not None or cloud_hansen_a is not None or
                 cloud_particle_number_density_grid is not None):
-            if cloud_particle_number_density_grid is not None:
+            if cloud_particles_radius_distribution == "lognormal":
                 (clouds_total_absorption_opacities, clouds_total_scattering_opacities,
                  cloud_scattering_reduction_factor) = \
-                    Radtrans._compute_cloud_opacities_using_particle_size_grid(
+                    Radtrans._compute_cloud_log_normal_particles_distribution_opacities(
                         atmosphere_densities=atmospheric_densities,
-                        clouds_mass_fractions=cloud_species_mass_fractions,
-                        cloud_particle_number_density_grid=cloud_particle_number_density_grid,
                         clouds_particles_densities=_cloud_particles_density,
+                        clouds_mass_fractions=_cloud_species_mass_fractions,
+                        cloud_particles_mean_radii=_cloud_particles_mean_radii,
+                        cloud_particles_distribution_std=cloud_particle_radius_distribution_std,
                         cloud_particles_radii_bins=clouds_loaded_opacities['particles_radii_bins'],
                         cloud_particles_radii=clouds_loaded_opacities['particles_radii'],
                         clouds_absorption_opacities=clouds_loaded_opacities['absorption_opacities'],
@@ -2116,15 +2123,14 @@ class Radtrans:
                         target_pressure=target_pressure
                     )
 
-            elif cloud_particles_radius_distribution == "lognormal":
+            elif cloud_particle_number_density_grid is not None:
                 (clouds_total_absorption_opacities, clouds_total_scattering_opacities,
                  cloud_scattering_reduction_factor) = \
-                    Radtrans._compute_cloud_log_normal_particles_distribution_opacities(
+                    Radtrans._compute_cloud_opacities_using_particle_size_grid(
                         atmosphere_densities=atmospheric_densities,
+                        clouds_mass_fractions=cloud_species_mass_fractions,
+                        cloud_particle_number_density_grid=cloud_particle_number_density_grid,
                         clouds_particles_densities=_cloud_particles_density,
-                        clouds_mass_fractions=_cloud_species_mass_fractions,
-                        cloud_particles_mean_radii=_cloud_particles_mean_radii,
-                        cloud_particles_distribution_std=cloud_particle_radius_distribution_std,
                         cloud_particles_radii_bins=clouds_loaded_opacities['particles_radii_bins'],
                         cloud_particles_radii=clouds_loaded_opacities['particles_radii'],
                         clouds_absorption_opacities=clouds_loaded_opacities['absorption_opacities'],
