@@ -2123,7 +2123,23 @@ class Radtrans:
                         target_pressure=target_pressure
                     )
 
-            elif cloud_particle_number_density_grid is not None:
+            elif cloud_particles_radius_distribution == "hansen":
+                (clouds_total_absorption_opacities, clouds_total_scattering_opacities,
+                 cloud_scattering_reduction_factor) = \
+                    fcore.compute_cloud_hansen_opacities(
+                        atmospheric_densities,
+                        _cloud_particles_density,
+                        _cloud_species_mass_fractions,
+                        _cloud_particles_mean_radii,
+                        cloud_hansen_b,
+                        clouds_loaded_opacities['particles_radii_bins'],
+                        clouds_loaded_opacities['particles_radii'],
+                        clouds_loaded_opacities['absorption_opacities'],
+                        clouds_loaded_opacities['scattering_opacities'],
+                        clouds_loaded_opacities['particles_asymmetry_parameters']
+                    )
+
+            elif cloud_particles_radius_distribution == "custom":
                 (clouds_total_absorption_opacities, clouds_total_scattering_opacities,
                  cloud_scattering_reduction_factor) = \
                     Radtrans._compute_cloud_opacities_using_particle_size_grid(
@@ -2141,21 +2157,6 @@ class Radtrans:
                         target_pressure=target_pressure
                     )
 
-            elif cloud_particles_mean_radii is not None or cloud_hansen_a is not None:
-                (clouds_total_absorption_opacities, clouds_total_scattering_opacities,
-                 cloud_scattering_reduction_factor) = \
-                    fcore.compute_cloud_hansen_opacities(
-                        atmospheric_densities,
-                        _cloud_particles_density,
-                        _cloud_species_mass_fractions,
-                        _cloud_particles_mean_radii,
-                        cloud_hansen_b,
-                        clouds_loaded_opacities['particles_radii_bins'],
-                        clouds_loaded_opacities['particles_radii'],
-                        clouds_loaded_opacities['absorption_opacities'],
-                        clouds_loaded_opacities['scattering_opacities'],
-                        clouds_loaded_opacities['particles_asymmetry_parameters']
-                    )
         else:
             missing_arguments = []
 
@@ -2167,6 +2168,9 @@ class Radtrans:
 
             if eddy_diffusion_coefficients is None:
                 missing_arguments.append("'eddy_diffusion_coefficients'")
+
+            if cloud_particles_radius_distribution == "custom" and cloud_particle_number_density_grid is None:
+                missing_arguments.append("'cloud_particle_number_density_grid'")
 
             if len(missing_arguments) > 0:
                 raise ValueError(
