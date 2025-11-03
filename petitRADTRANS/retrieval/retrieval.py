@@ -1668,6 +1668,7 @@ class Retrieval:
         d_o_f = 0
 
         for name, data in self.configuration.data.items():
+            add = 0.0
             if isinstance(data.data_resolution, np.ndarray):
                 data.initialise_data_resolution(wlen_model)
 
@@ -1681,14 +1682,33 @@ class Retrieval:
                 parameters
             )
 
+            # Normalisation factor with covariance
             if data.covariance is not None:
                 if data.scale_err:
                     sf = parameters[f"{name}_scale_factor"].value
 
-                _, log_det = np.linalg.slogdet(2 * np.pi * data.covariance * sf ** 2.0)
+                _, log_det = np.linalg.slogdet(2 * np.pi * data.covariance * (sf ** 2.0))
                 add = 0.5 * log_det
             else:
-                add = 0.5 * np.sum(np.log(2.0 * np.pi * data.uncertainties ** 2.))
+                # Normalisation factor without covariance
+                f_err = data.uncertainties
+
+                # Test for error inflation or scaling
+                b_val = None
+                if f"{name}_b" in parameters.keys():
+                    b_val = parameters[name + "_b"].value
+                elif f"{name.rsplit('_', 1)[0]}_b" in parameters.keys():
+                    b_val = parameters[f"{name.rsplit('_', 1)[0]}_b"].value
+                elif "uncertainty_scaling_b" in parameters.keys():
+                    b_val = parameters["uncertainty_scaling_b"].value
+                if b_val is not None:
+                    f_err = np.sqrt(f_err ** 2 + 10 ** b_val)
+                if data.scale_err:
+                    f_err = f_err * parameters[name + "_scale_factor"].value
+
+                add = 0.5 * np.sum(np.log(2.0 * np.pi * f_err ** 2))
+
+            # Add for the dataset
             norm += add
 
         if subtract_n_parameters:
@@ -3103,7 +3123,7 @@ class Retrieval:
                 # This probably doesn't need to be in a loop
                 contr_em = best_fit_contribution / weights
                 contr_em = contr_em * spectral_weights[None, :]
-                contr_em = np.sum(best_fit_contribution, axis=1)
+                contr_em = np.sum(contr_em, axis=1)
                 contr_em = contr_em / np.sum(contr_em)
 
                 if self.test_plotting:
@@ -3765,7 +3785,7 @@ class Retrieval:
                 # This probably doesn't need to be in a loop
                 contr_em = best_fit_contribution / weights
                 contr_em = contr_em * spectral_weights[None, :]
-                contr_em = np.sum(best_fit_contribution, axis=1)
+                contr_em = np.sum(contr_em, axis=1)
                 contr_em = contr_em / np.sum(contr_em)
 
                 if self.test_plotting:
