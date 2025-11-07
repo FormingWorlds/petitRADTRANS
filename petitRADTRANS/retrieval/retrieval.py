@@ -3505,8 +3505,19 @@ class Retrieval:
         """
         from petitRADTRANS.plotlib.plotlib import contour_corner
 
-        if not self.use_mpi or rank == 0:
+        fig = None
 
+        if not sample_dict:
+            raise ValueError(
+                'cannot make a corner plot without sample'
+            )
+
+        if not parameter_dict:
+            raise ValueError(
+                'cannot make a corner plot with no parameter to plot'
+            )
+
+        if not self.use_mpi or rank == 0:
             if not self.configuration.run_mode == 'evaluate':
                 print("Not in evaluate mode. Changing run mode to evaluate.")
                 self.configuration.run_mode = 'evaluate'
@@ -3544,6 +3555,18 @@ class Retrieval:
                 p_use_dict[name] = parameters_use
                 sample_use_dict[name] = copy.copy(samples_use)
 
+            # Ensure that we want something to be plotted
+            _plot_indices = [value.size for value in p_plot_inds.values()]
+
+            if np.max(_plot_indices) == 0:
+                print(
+                    "No parameter to be plotted "
+                    "(all Retrieval parameters 'plot_to_corner' attribute are set to False), "
+                    "skipping corner plot..."
+                )
+
+                return fig
+
             output_file = self.get_base_figure_name() + '_corner_plot.pdf'
             # from Plotting
             fig = contour_corner(
@@ -3557,8 +3580,6 @@ class Retrieval:
                 true_values=true_values,
                 **kwargs
             )
-        else:
-            fig = None
 
         if self.use_mpi and comm is not None:
             comm.barrier()

@@ -17,9 +17,10 @@ from petitRADTRANS.cli.prt_cli import get_keeper_files_url_paths
 from petitRADTRANS.config.configuration import get_input_data_subpaths, petitradtrans_config_parser
 from petitRADTRANS.utils import LockedDict, list_str2str
 
-if os.environ.get("pRT_emcee_mode") == 'True':  # TODO make use of config_parser instead
-    pass
-else:
+comm = None
+rank = 0
+
+if os.environ.get("pRT_emcee_mode") != 'True':  # TODO make use of config_parser instead
     # MPI Multiprocessing
     try:
         from mpi4py import MPI
@@ -28,14 +29,12 @@ else:
         rank = comm.Get_rank()
     except ImportError:
         MPI = None
-        comm = None
-        rank = 0
 
 
 class Opacity:
     # Categories
     _default_category: str = 'unknown'
-    _temperature_grid_types: set[str, str] = {'regular', 'pressure-dependent'}
+    _temperature_grid_types: set[str] = {'regular', 'pressure-dependent'}
 
     # Charge strings
     _minus_char: str = 'm'
@@ -96,11 +95,13 @@ class Opacity:
     _wavelength_separator: str = '-'
 
     # Patterns
+    __sl: str = '\\'  # prevent Pycharm from complaining in regex patterns
+
     _amorphous_structure_id_pattern: re.Pattern = re.compile(r'[A-Z]{1,5}')  # up to 5 capital letters
     _charge_pattern: re.Pattern = re.compile(
         r'(' + rf'({_charge_separator})?' + r'(\d{0,3})?'
         + r'['
-        + '\\' + rf'{"///".join(_charge_symbols)}'.replace('///', '\\')
+        + __sl + rf'{"///".join(_charge_symbols)}'.replace('///', '\\')
         + rf'{"".join(_charge_chars)}'
         + r'])$'
     )
@@ -115,28 +116,30 @@ class Opacity:
         + rf'\d+(\.\d+)?{_wavelength_units})?'
     )
 
+    # noinspection RegExpDuplicateAlternationBranch
     _name_pattern = re.compile(
         r'^'  # must start ...
         r'(\d{0,3}[A-Z])'  # ... with up to 3 digits or an uppercase character
         r'(\d|[A-Z]|[a-z]|'  # isotope number and element symbol (note: there is no opacities for e-)
-        + _colliding_species_separator +
-        r'(?!' + _isotope_separator + r')|'  # ensure that the separator is not repeated
-        + _isotope_separator +
-        r'(?!' + _isotope_separator + r')|'  # ensure that the separator is not repeated
-                                      r'\[|])*'  # list of isotopes and their number, can be separated by "-"
-                                      r'('  # "[" and "]" can be used as well
-        + _isotope_separator + _natural_abundance_string +  # indicate a mix of isotopologues
-        r')?'  # (natural abundance string is optional)
+        + _colliding_species_separator  # colliding species separated by "--"
+        + r'(?!' + _isotope_separator + r')|'  # ensure that the colliding species separator is not repeated ("---")
+        + _isotope_separator  # isotopes separated by "-"
+        + r'(?!' + _isotope_separator + r')|'  # ensure that the isotope separator is not repeated ("--")
+        + r'\[|]'  # "[" and "]" can be used as well
+        + r')*'  # zero or more of all the above
+        + r'('
+        + _isotope_separator + _natural_abundance_string  # natural abundance (mix of isotopologues) indicator
+        + r')?'  # (natural abundance string is optional)
         r'('  # begin charge formatting
         + _charge_separator + r'?'  # can be separated with a "_"
                               r'(\d{1,3})?'  # can have a charge number of up to 3 digits
-                              r'[' + _minus_char + _plus_char + '\\' + _minus_symbol + '\\' + _plus_symbol + r']'
-                                                                                       r')?'  # end charge formatting
-                                                                                       r'('  # begin cloud formatting
-                                                                                       r'('
+                              r'[' + _minus_char + _plus_char + __sl + _minus_symbol + __sl + _plus_symbol + r']'
+        + r')?'  # end charge formatting
+        + r'('  # begin cloud formatting
+        + r'('  # liquid cloud formatting
         + _liquid_matter_state.replace('(', r'\(').replace(')', r'\)') +  # liquid state
         r')'  # no additional information required for liquid state
-        r'|('
+        r'|('  # solid cloud formatting
         + _solid_matter_state.replace('(', r'\(').replace(')', r'\)') +  # solid state
         r')' + _solid_structure_separator +
         r'('  # for solid states, it must be specified if the solid is crystalline or amorphous
@@ -150,7 +153,7 @@ class Opacity:
         r')'  # end solid state extra info
         r')?'  # end cloud formatting (optional)
         r'(' + _source_separator + r'(\d|[A-Z]|[a-z]|-)+)?'  # source or method (optional)
-                                   r'(' + '\\' + _spectral_information_separator + '('  # begin spectral sampling type
+                                   r'(' + __sl + _spectral_information_separator + '('  # begin spectral sampling type
         + _constant_resolving_power +
         r'|'
         + _constant_delta_wavelength +
@@ -162,8 +165,8 @@ class Opacity:
         r'('  # begin wavelength range formatting
         + _wavelength_range_separator +
         r'\d+(\.\d+)?' + _wavelength_separator + rf'\d+(\.\d+)?{_wavelength_units}'  # spectral range (min-max) in um
-                                                 r')?'  # end wavelength range formatting (optional)
-                                                 r'$'  # all the string must match this pattern
+        + r')?'  # end wavelength range formatting (optional)
+        + r'$'  # all the string must match this pattern
     )
 
     # Default resolving powers
@@ -180,7 +183,7 @@ class Opacity:
             charge: int = 0,
             source: str = 'unknown',
             spectral_sampling_type: str = 'R',
-            spectral_sampling: [int, float] = 0.0,
+            spectral_sampling: int | float = 0.0,
             wavelength_min: float = 0.0,
             wavelength_max: float = 0.0,
             matter_state: str = _gas_matter_state,
@@ -357,7 +360,7 @@ class Opacity:
         return isotope_groups
 
     @staticmethod
-    def __single_separator_split(string: str, separator: str, value_error_message: str = None) -> (str, str):
+    def __single_separator_split(string: str, separator: str, value_error_message: str = None) -> tuple[str, str]:
         _split = string.split(separator, 1)
 
         if len(_split) == 1:
@@ -372,8 +375,8 @@ class Opacity:
         return left_split, right_split
 
     @classmethod
-    def _before_write(cls, temperature_grid_type: str, molar_mass: float, species_name: [str, tuple[str, ...]],
-                      date_id: str) -> ([float, npt.NDArray[float]], str):
+    def _before_write(cls, temperature_grid_type: str, molar_mass: float, species_name: str | tuple[str, ...],
+                      date_id: str) -> tuple[float | npt.NDArray[float], str]:
         from petitRADTRANS.chemistry.prt_molmass import get_species_molar_mass
 
         if temperature_grid_type not in cls._temperature_grid_types:
@@ -400,7 +403,7 @@ class Opacity:
     @classmethod
     def _init_species_name_elements(
             cls, name: str, species: str, natural_abundance: str, charge: str
-    ) -> (str, bool, int):
+    ) -> tuple[str, bool, int]:
         name = cls.modify_isotope_numbers(
             species=name,
             mode='add',
@@ -506,7 +509,7 @@ class Opacity:
                                           f"(sampling: {file_sampling}, range: {file_range})")
 
                         # Add the current file to the filename matches if the conditions apply
-                        if _filename in _file:
+                        if _file.startswith(_filename):
                             if filename_source != '':
                                 if filename_source != file_source:
                                     continue
@@ -551,9 +554,11 @@ class Opacity:
                 if len(matching_files) == 0:
                     if display_other_files:
                         files_str = "\n".join(files)
-                        warnings.warn(f"no file matching name '{filename}' found in directory '{full_path}'\n"
-                                      f"Available files are:\n"
-                                      f"{files_str}")
+                        warnings.warn(
+                            f"no file matching name '{filename}' found in directory '{full_path}'\n"
+                            f"Available files are:\n"
+                            f"{files_str}"
+                        )
 
                     return []
                 elif len(matching_files) == 1:
@@ -918,7 +923,7 @@ class Opacity:
             cls,
             species: str,
             spectral_sampling_type: str = 'R',
-            spectral_sampling: [int, float] = 0.0,
+            spectral_sampling: int | float = 0.0,
             wavelength_min: float = 0.0,
             wavelength_max: float = 0.0,
             path_input_data: str = None
@@ -1162,7 +1167,7 @@ class Opacity:
             isotope_pattern: str = None,
             natural_abundance_string: str = None,
             colliding_species_separator: str = None
-    ) -> (str, str, str, str):
+    ) -> tuple[str, str, str, str]:
         if isotope_separator is None:
             isotope_separator = cls._isotope_separator
 
@@ -1508,8 +1513,6 @@ class Opacity:
 
                 if mode == 'remove':
                     return species
-            else:
-                raise ValueError(f"iter isotopes mode must be 'add'|'remove', but was '{mode}'")
 
         # Handle regular case
         colliding_species = species.split(colliding_species_separator)  # CIA case
@@ -1554,7 +1557,7 @@ class Opacity:
         )
 
     @classmethod
-    def split_cloud_info(cls, cloud_info: str) -> (str, str, str):
+    def split_cloud_info(cls, cloud_info: str) -> tuple[str, str, str]:
         if ')' not in cloud_info:
             raise ValueError(
                 f"no matter state found in cloud info '{cloud_info}'; "
@@ -1641,7 +1644,7 @@ class Opacity:
         return name, natural_abundance, charge, cloud_info, source, spectral_info
 
     @classmethod
-    def split_species_charge(cls, species: str, replace_symbol_with_char: bool = False) -> (str, str):
+    def split_species_charge(cls, species: str, replace_symbol_with_char: bool = False) -> tuple[str, str]:
         # Extract charge symbol
         charge_pattern_match = re.findall(cls._charge_pattern, species)
         charge = ''
@@ -1671,7 +1674,7 @@ class Opacity:
         return name, charge
 
     @staticmethod
-    def split_species_cloud_info(species: str) -> (str, str):
+    def split_species_cloud_info(species: str) -> tuple[str, str]:
         cloud_info = ''
         _split = species.split('(', 1)
 
@@ -1684,7 +1687,7 @@ class Opacity:
         return name, cloud_info
 
     @classmethod
-    def split_species_source(cls, species: str) -> (str, str):
+    def split_species_source(cls, species: str) -> tuple[str, str]:
         _split = species.split(cls._source_separator, 1)
 
         if len(_split) == 1:
@@ -1696,7 +1699,7 @@ class Opacity:
         return name, source
 
     @classmethod
-    def split_species_spectral_info(cls, species: str) -> (str, str):
+    def split_species_spectral_info(cls, species: str) -> tuple[str, str]:
         _split = species.split(cls._spectral_information_separator, 1)
 
         if len(_split) == 1:
@@ -1708,7 +1711,7 @@ class Opacity:
         return name, spectral_info
 
     @classmethod
-    def split_spectral_sampling_info(cls, spectral_sampling_info: str) -> (str, str):
+    def split_spectral_sampling_info(cls, spectral_sampling_info: str) -> tuple[str, str]:
         spectral_sampling_type = None
         spectral_sampling_value = None
 
@@ -1726,7 +1729,7 @@ class Opacity:
         return spectral_sampling_type, spectral_sampling_value
 
     @classmethod
-    def split_spectral_info(cls, spectral_info: str) -> (str, str):
+    def split_spectral_info(cls, spectral_info: str) -> tuple[str, str]:
         _split = spectral_info.split(cls._wavelength_range_separator, 1)
 
         if len(_split) == 1:
@@ -1738,7 +1741,7 @@ class Opacity:
         return spectral_sampling_info, wavelength_range_info
 
     @classmethod
-    def split_wavelength_range_info(cls, wavelength_range_info: str) -> (str, str):
+    def split_wavelength_range_info(cls, wavelength_range_info: str) -> tuple[str, str]:
         _split = wavelength_range_info.split(cls._wavelength_separator, 1)
 
         if len(_split) == 1:
@@ -1775,7 +1778,7 @@ class CIAOpacity(Opacity):
             charge: int = 0,
             source: str = 'unknown',
             spectral_sampling_type: str = 'R',
-            spectral_sampling: [int, float] = 830,
+            spectral_sampling: int | float = 830,
             wavelength_min: float = _default_wavelength_range[0],
             wavelength_max: float = _default_wavelength_range[1],
             path_input_data: str = None,
@@ -1846,7 +1849,7 @@ class CIAOpacity(Opacity):
             cls,
             species: str,
             spectral_sampling_type: str = 'R',
-            spectral_sampling: [int, float] = Opacity._default_line_by_line_resolving_power,
+            spectral_sampling: int | float = Opacity._default_line_by_line_resolving_power,
             wavelength_min: float = _default_wavelength_range[0],
             wavelength_max: float = _default_wavelength_range[1],
             path_input_data: str = None,
@@ -2035,7 +2038,7 @@ class CloudOpacity(Opacity):
     _default_resolving_power: float = Opacity._default_cloud_resolving_power
     _default_wavelength_range: tuple[float, float] = (0.1, 250.0)
 
-    _default_file_names: LockedDict[str, str] = LockedDict.build_and_lock({
+    _default_file_names: LockedDict = LockedDict.build_and_lock({
         'Al2O3(s)_crystalline': 'Al2-O3-NatAbund(s)_crystalline_000.R39_0.1-250mu',
         'Fe(s)_amorphous': 'Fe-NatAbund(s)_amorphous.R39_0.1-250mu',
         'Fe(s)_crystalline': 'Fe-NatAbund(s)_crystalline_000.R39_0.1-250mu',
@@ -2061,7 +2064,7 @@ class CloudOpacity(Opacity):
             charge: int = 0,
             source: str = 'unknown',
             spectral_sampling_type: str = 'R',
-            spectral_sampling: [int, float] = Opacity._default_cloud_resolving_power,
+            spectral_sampling: int | float = Opacity._default_cloud_resolving_power,
             wavelength_min: float = _default_wavelength_range[0],
             wavelength_max: float = _default_wavelength_range[1],
             matter_state: str = Opacity._solid_matter_state,
@@ -2136,7 +2139,7 @@ class CloudOpacity(Opacity):
             cls,
             species: str,
             spectral_sampling_type: str = 'R',
-            spectral_sampling: [int, float] = Opacity._default_cloud_resolving_power,
+            spectral_sampling: int | float = Opacity._default_cloud_resolving_power,
             wavelength_min: float = _default_wavelength_range[0],
             wavelength_max: float = _default_wavelength_range[1],
             path_input_data: str = None,
@@ -2533,7 +2536,7 @@ class CorrelatedKOpacity(Opacity):
             charge: int = 0,
             source: str = 'unknown',
             spectral_sampling_type: str = 'R',
-            spectral_sampling: [int, float] = Opacity._default_correlated_k_resolving_power,
+            spectral_sampling: int | float = Opacity._default_correlated_k_resolving_power,
             wavelength_min: float = _default_wavelength_range[0],
             wavelength_max: float = _default_wavelength_range[1],
             path_input_data: str = None,
@@ -2639,7 +2642,7 @@ class CorrelatedKOpacity(Opacity):
                 rewrite=rewrite
             )
 
-            if state is None:
+            if state == 0:
                 success = True
             elif state == -1:
                 success = False
@@ -2655,7 +2658,7 @@ class CorrelatedKOpacity(Opacity):
 
     @classmethod
     def exo_k_rebin(cls, input_file: str, resolving_power: float, wavenumber_grid: npt.NDArray[float] = None,
-                    rewrite: bool = False) -> [int, None]:
+                    rewrite: bool = False) -> int:
         try:
             import exo_k
         except ImportError:
@@ -2689,8 +2692,8 @@ class CorrelatedKOpacity(Opacity):
                 species=species,
                 spectral_sampling_type='R',
                 spectral_sampling=resolving_power,
-                wavelength_min=wavelength_min,
-                wavelength_max=wavelength_max,
+                wavelength_min=float(wavelength_min),
+                wavelength_max=float(wavelength_max),
                 category=cls._default_category
             )
 
@@ -2715,12 +2718,14 @@ class CorrelatedKOpacity(Opacity):
         if comm is not None:  # wait for the main process to finish the binning down
             comm.barrier()
 
+        return 0
+
     @classmethod
     def from_species(
             cls,
             species: str,
             spectral_sampling_type: str = 'R',
-            spectral_sampling: [int, float] = Opacity._default_correlated_k_resolving_power,
+            spectral_sampling: int | float = Opacity._default_correlated_k_resolving_power,
             wavelength_min: float = _default_wavelength_range[0],
             wavelength_max: float = _default_wavelength_range[1],
             path_input_data: str = None,
@@ -2980,7 +2985,7 @@ class LineByLineOpacity(Opacity):
             charge: int = 0,
             source: str = 'unknown',
             spectral_sampling_type: str = 'R',
-            spectral_sampling: [int, float] = Opacity._default_line_by_line_resolving_power,
+            spectral_sampling: int | float = Opacity._default_line_by_line_resolving_power,
             wavelength_min: float = _default_wavelength_range[0],
             wavelength_max: float = _default_wavelength_range[1],
             path_input_data: str = None,
@@ -3022,7 +3027,7 @@ class LineByLineOpacity(Opacity):
             cls,
             species: str,
             spectral_sampling_type: str = 'R',
-            spectral_sampling: [int, float] = Opacity._default_line_by_line_resolving_power,
+            spectral_sampling: int | float = Opacity._default_line_by_line_resolving_power,
             wavelength_min: float = _default_wavelength_range[0],
             wavelength_max: float = _default_wavelength_range[1],
             path_input_data: str = None,

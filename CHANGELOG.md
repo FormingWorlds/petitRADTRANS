@@ -4,7 +4,15 @@ All notable changes to petitRADTRANS will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com)
 and this project adheres to [Semantic Versioning](http://semver.org).
 
-## [3.2.0a34] - 2025-05-27
+## [3.2.1a4] - 2025-08-15
+### Fixed
+- Crash when rebinning line opacities if `mpi4py` is not installed.
+- Crash when rebinning line opacities when `emcee` mode is activated ([issue 119](https://gitlab.com/mauricemolli/petitRADTRANS/-/issues/119)).
+- Confusing error message when using function `retrieval.plot_corner` with no parameter ([issue 120](https://gitlab.com/mauricemolli/petitRADTRANS/-/issues/120)).
+- Incorrect behaviour: loading opacities with a species name matching multiple opacity files always results in trying to load the default species file, if it exists.
+- Opacity files with invalid name starts can be considered valid.
+
+## [3.2.0] - 2025-05-30
 ### Added
 - Option for `adaptive_feautrier_iterations` in the emission spectrum scattering-convergence.
 - Non-vertically constant free-chemistry abundance profiles. Included stepped, linear and cubic interpolations.
@@ -64,8 +72,8 @@ and this project adheres to [Semantic Versioning](http://semver.org).
 - Updated corner plot ranges, fixing ([issue 101](https://gitlab.com/mauricemolli/petitRADTRANS/-/issues/101)).
 - Updated power law profile, fixing ([issue 103](https://gitlab.com/mauricemolli/petitRADTRANS/-/issues/103)).
 - Updated contribution function plotting over PT profile and abundances, fixing ([issue 106](https://gitlab.com/mauricemolli/petitRADTRANS/-/issues/106)).
-- Fixed numerical bug in Madhusudhan/Seager PT profile ([issue 115](https://gitlab.com/mauricemolli/petitRADTRANS/-/issues/115)).
-- Fixed missing error inflation in `retrieval.get_reduced_chi2_from_model` ([issue 114](https://gitlab.com/mauricemolli/petitRADTRANS/-/issues/114)).
+- Numerical bug in Madhusudhan/Seager PT profile ([issue 115](https://gitlab.com/mauricemolli/petitRADTRANS/-/issues/115)).
+- Missing error inflation in `retrieval.get_reduced_chi2_from_model` ([issue 114](https://gitlab.com/mauricemolli/petitRADTRANS/-/issues/114)). 
 
 ### Pending
 - Temporarily reverted to allow < 0 solutions in the tridiagonal solver until it is determined if they should be allowed.
