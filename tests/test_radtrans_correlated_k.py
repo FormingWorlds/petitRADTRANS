@@ -344,5 +344,4 @@ def test_transit_spectrum_with_custom_cloud_distribution():
         reference_pressure=test_parameters['planetary_parameters']['reference_pressure'],
         cloud_particle_number_density_grid=cloud_particle_number_density_grid,
         cloud_particles_radius_distribution="custom",
-        frequencies_to_wavelengths=False
-    )
+        frequencies_to_wavelengths=False)
