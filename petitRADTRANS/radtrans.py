@@ -1924,12 +1924,10 @@ class Radtrans:
         diff = np.log(cloud_particles_radii[:, None, None]) - np.log(cloud_particles_mean_radii)
 
         dn_dr = (
-                n / (
-                cloud_particles_radii[:, None, None] *
-                np.sqrt(2.0 * np.pi) * np.log(cloud_particles_distribution_std)
-        )
+                n / (cloud_particles_radii[:, None, None] * np.sqrt(2.0 * np.pi)
+                     * np.log(cloud_particles_distribution_std))
                 * np.exp(-diff ** 2 / (2.0 * np.log(cloud_particles_distribution_std) ** 2))
-        )
+                )
 
         # Delegate to shared integrator
         _cloud_absorption_opacities, _cloud_scattering_opacities, cloud_anisotropic_fraction =\
