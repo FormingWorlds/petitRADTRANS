@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](http://semver.org).
 - Better handling of opacity naming in chemistry, allows for some combinations of lbl and ck in retrievals.
 - Made retrieval dependencies part of standard installation.
 - Integration of cloud opacities is now handled by feeder function.
+- Renamed cloud_anisotopy_fraction to cloud_one_minus_g in radtrans.
 
 ### Fixed
 - Crash when rebinning line opacities if `mpi4py` is not installed.

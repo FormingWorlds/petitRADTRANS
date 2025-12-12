@@ -1847,22 +1847,21 @@ class Radtrans:
         # Integrate over radius
         widths = np.diff(cloud_particles_radii_bins)[:, None, None, None]
 
-        cloud_abs = np.sum(integrand_absorption * widths, axis=(0, 3))
-        cloud_sca = np.sum(integrand_scattering * widths, axis=(0, 3))
-        cloud_aniso = np.sum(integrand_anisotropy * widths, axis=(0, 3))
+        clouds_absorption_opacities = np.sum(integrand_absorption * widths, axis=(0, 3))
+        clouds_scattering_opacities = np.sum(integrand_scattering * widths, axis=(0, 3))
+        cloud_one_minus_g = np.sum(integrand_anisotropy * widths, axis=(0, 3))
 
-        # Normalize anisotropy
-        cloud_aniso = np.true_divide(
-            cloud_aniso, cloud_sca,
-            out=np.zeros_like(cloud_sca),
-            where=cloud_sca > 1e-200
+        cloud_one_minus_g = np.true_divide(
+            cloud_one_minus_g, clouds_scattering_opacities,
+            out=np.zeros_like(clouds_scattering_opacities),
+            where=clouds_scattering_opacities > 1e-200
         )
 
         # Divide by atmosphere density
-        cloud_abs /= atmosphere_densities
-        cloud_sca /= atmosphere_densities
+        clouds_absorption_opacities /= atmosphere_densities
+        clouds_scattering_opacities /= atmosphere_densities
 
-        return cloud_abs, cloud_sca, cloud_aniso
+        return clouds_absorption_opacities, clouds_scattering_opacities, cloud_one_minus_g
 
     @staticmethod
     def _compute_cloud_log_normal_particles_distribution_opacities(
@@ -1930,7 +1929,7 @@ class Radtrans:
                 )
 
         # Delegate to shared integrator
-        _cloud_absorption_opacities, _cloud_scattering_opacities, cloud_anisotropic_fraction =\
+        _cloud_absorption_opacities, _cloud_scattering_opacities, cloud_one_minus_g =\
             Radtrans._integrate_cloud_opacities_from_dn_dr(dn_dr,
                                                            atmosphere_densities,
                                                            clouds_particles_densities,
@@ -1944,7 +1943,7 @@ class Radtrans:
                                                            target_pressure
                                                            )
 
-        return _cloud_absorption_opacities, _cloud_scattering_opacities, cloud_anisotropic_fraction
+        return _cloud_absorption_opacities, _cloud_scattering_opacities, cloud_one_minus_g
 
     @staticmethod
     def _compute_cloud_opacities_using_particle_size_grid(
@@ -2000,7 +1999,7 @@ class Radtrans:
         else:
             dn_dr = cloud_particle_number_density_grid
 
-        _cloud_absorption_opacities, _cloud_scattering_opacities, cloud_anisotropic_fraction = \
+        _cloud_absorption_opacities, _cloud_scattering_opacities, cloud_one_minus_g = \
             Radtrans._integrate_cloud_opacities_from_dn_dr(dn_dr,
                                                            atmosphere_densities,
                                                            clouds_particles_densities,
@@ -2014,7 +2013,7 @@ class Radtrans:
                                                            target_pressure
                                                            )
 
-        return _cloud_absorption_opacities, _cloud_scattering_opacities, cloud_anisotropic_fraction
+        return _cloud_absorption_opacities, _cloud_scattering_opacities, cloud_one_minus_g
 
     @staticmethod
     def _compute_cloud_opacities(
