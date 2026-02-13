@@ -1073,3 +1073,84 @@ def wavelength2frequency(wavelength: npt.NDArray | float) -> npt.NDArray | float
         (Hz) the converted frequencies
     """
     return frequency2wavelength(wavelength)  # the operation is the same: (c / Hz) -> cm, (c / cm) -> Hz
+
+
+def rackham_stellar_spot_correction(prt_object, stellar_temperature, spot_temperature, spot_coverage,
+                                    stellar_model=None, spot_model=None):
+    """Function to compute the stellar spot correction following Rackham et al. 2018 Eq. 2
+
+    Args:
+        prt_object: petitRADTRANS object
+            The petitRADTRANS object containing the wavelength grid.
+        stellar_temperature: float
+            The temperature of the unspotted stellar photosphere in K.
+        spot_temperature: float
+            The temperature of the spots in K.
+        spot_coverage: float
+            The fraction of the stellar surface covered by spots (between 0 and 1).
+        stellar_model: numpy.ndarray, optional
+            A 2D array containing the wavelengths (in cm) and fluxes of the stellar model.
+            If None, a Phoenix model will be used.
+        spot_model: numpy.ndarray, optional
+            A 2D array containing the wavelengths (in cm) and fluxes of the spot model.
+            If None, a Phoenix model will be used.
+
+    Returns:
+        correction_factor: numpy.ndarray
+            The correction factor to be applied to the transit depth in the dimension of the wavelength.
+    """
+    from petitRADTRANS.stellar_spectra.phoenix import PhoenixStarTable
+
+    if stellar_model is not None:
+        if spot_model is None:
+            raise ValueError("If an individual stellar model should be used, a spot model must also be provided.")
+
+    bins_borders_take_freq = prt_object._frequency_bins_edges
+    bins_borders_take = cst.c / prt_object._frequency_bins_edges / 1e-4
+
+    wavelengths = np.array((bins_borders_take_freq[1:] + bins_borders_take_freq[:-1]) / 2.)
+    wavelengths = cst.c / wavelengths * 1e4
+    widths = np.diff(bins_borders_take)
+
+    # compute the stellar spectra
+    if stellar_model is None:
+
+        star = PhoenixStarTable()
+        stellar_spec, __ = star.compute_spectrum(stellar_temperature)
+
+    else:
+
+        stellar_spec = stellar_model
+
+    wlen_in_micron = stellar_spec[:, 0] / 1e-4
+    flux_star = stellar_spec[:, 1]
+
+    # rebin the stellar spectrum to the prt_object resolution
+    bin_flux_star = frebin.rebin_spectrum_bin(wlen_in_micron,
+                                              flux_star,
+                                              wavelengths,
+                                              widths)
+
+    # compute the spot spectrum
+    if spot_model is None:
+
+        star = PhoenixStarTable()
+        stellar_spec_spot, __ = star.compute_spectrum(spot_temperature)
+
+    else:
+
+        stellar_spec_spot = spot_model
+
+    wlen_in_micron_spot = stellar_spec_spot[:, 0] / 1e-4
+    flux_star_spot = stellar_spec_spot[:, 1]
+
+    # rebin the spot spectrum to the prt_object resolution
+    bin_flux_spot = frebin.rebin_spectrum_bin(wlen_in_micron_spot,
+                                              flux_star_spot,
+                                              wavelengths,
+                                              widths)
+
+    # compute the correction factor
+    correction_factor = 1 - spot_coverage * (1 - bin_flux_spot / bin_flux_star)
+
+    return correction_factor
