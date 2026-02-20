@@ -1,7 +1,6 @@
 """Stellar spot correction
 """
 import numpy as np
-from petitRADTRANS.stellar_spectra.phoenix import PhoenixStarTable
 
 # noinspection PyUnresolvedReferences
 from petitRADTRANS.fortran_rebin import fortran_rebin as frebin
@@ -35,8 +34,8 @@ def rackham_stellar_spot_correction(prt_object, star_effective_temperature: floa
             The correction factor to be applied to the transit depth in the dimension of the wavelength.
 
     Reference:
-    - Rackham et al. (2018). The Transit Light Source Effect: False Spectral Features and Incorrect Densities for M-dwarf
-      Transiting Planets.
+    - Rackham et al. (2018). The Transit Light Source Effect: False Spectral Features and Incorrect Densities for
+      M-dwarf Transiting Planets.
       The Astrophysical Journal, Volume 853, Issue 2, article id. 122, 18 pp.
       https://ui.adsabs.harvard.edu/link_gateway/2018ApJ...853..122R/doi:10.3847/1538-4357/aaa08c
     """
@@ -45,10 +44,10 @@ def rackham_stellar_spot_correction(prt_object, star_effective_temperature: floa
         if spot_model is None:
             raise ValueError("if an individual stellar model should be used, a spot model must also be provided.")
 
-    wavelength_bin_edges = cst.c / prt_object._frequency_bins_edges * 1e4 # in micron
+    wavelength_bin_edges = cst.c / prt_object._frequency_bins_edges * 1e4  # in micron
 
     wavelengths = np.array((prt_object._frequency_bins_edges[1:] + prt_object._frequency_bins_edges[:-1]) * 0.5)
-    wavelengths = cst.c / wavelengths * 1e4 # in micron
+    wavelengths = cst.c / wavelengths * 1e4  # in micron
     wavelength_bin_widths = np.diff(wavelength_bin_edges)
 
     # Compute the stellar spectra
@@ -64,7 +63,7 @@ def rackham_stellar_spot_correction(prt_object, star_effective_temperature: floa
 
     # Rebin the stellar spectrum to the prt_object resolution
     bin_flux_star = frebin.rebin_spectrum_bin(
-                                              wavelength_bin_edges,
+                                              wavelengths_star,
                                               star_flux,
                                               wavelengths,
                                               wavelength_bin_widths
