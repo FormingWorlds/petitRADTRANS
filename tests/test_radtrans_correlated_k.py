@@ -350,3 +350,30 @@ def test_correlated_k_transmission_spectrum_with_custom_cloud_distribution():
         cloud_particles_radius_distribution="custom",
         frequencies_to_wavelengths=False
         )
+
+
+def test_correlated_k_transmission_spectrum_cloud_on_off():
+    mass_fractions, _, cloud_f_sed, cloud_particle_radius_distribution_std, _ = get_cloud_parameters(
+        'mass_fractions_correlated_k'
+    )
+
+    benchmark = Benchmark(
+        function=atmosphere_ck.calculate_transit_radii,
+        relative_tolerance=relative_tolerance
+    )
+
+    benchmark.run(
+        temperatures=test_parameters['temperature_isothermal'] * np.ones_like(test_parameters['pressures']),
+        mass_fractions=mass_fractions,
+        reference_gravity=test_parameters['planetary_parameters']['reference_gravity'],
+        mean_molar_masses=test_parameters['mean_molar_mass'],
+        planet_radius=test_parameters['planetary_parameters']['radius']
+                      * petitRADTRANS.physical_constants.r_jup_mean,
+        reference_pressure=test_parameters['planetary_parameters']['reference_pressure'],
+        eddy_diffusion_coefficients=test_parameters['planetary_parameters']['eddy_diffusion_coefficients'],
+        cloud_f_sed=cloud_f_sed,
+        cloud_particle_radius_distribution_std=cloud_particle_radius_distribution_std,
+        target_particle_radii=test_parameters['target_particle_radii'],
+        target_pressure=test_parameters['target_pressure'],
+        frequencies_to_wavelengths=False
+    )
