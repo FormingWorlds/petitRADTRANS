@@ -4,6 +4,9 @@ import numpy as np
 
 from .context import petitRADTRANS
 from .utils import reference_filenames, test_parameters, temperature_guillot_2010
+from .benchmark import Benchmark
+
+from test_radtrans_correlated_k import init_radtrans_correlated_k
 
 relative_tolerance = 1e-6
 
@@ -83,4 +86,20 @@ def test_stellar_model():
         reference_spectral_radiosity,
         rtol=relative_tolerance,
         atol=0
+    )
+
+atmosphere_ck = init_radtrans_correlated_k()
+
+def test_stellar_spot_correction():
+
+    benchmark = Benchmark(
+        function=petitRADTRANS.stellar_spectra.stellar_spot_correction.rackham_stellar_spot_correction,
+        relative_tolerance=relative_tolerance
+    )
+
+    benchmark.run(
+        prt_object=atmosphere_ck,
+        star_effective_temperature=test_parameters['stellar_parameters']['effective_temperature'],
+        star_spot_effective_temperature=(test_parameters['stellar_parameters']['effective_temperature'] - 300),
+        spot_coverage=0.1
     )
