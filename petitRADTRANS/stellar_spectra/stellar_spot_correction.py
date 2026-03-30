@@ -4,7 +4,6 @@ import numpy as np
 
 # noinspection PyUnresolvedReferences
 from petitRADTRANS.fortran_rebin import fortran_rebin as frebin
-import petitRADTRANS
 import petitRADTRANS.physical_constants as cst
 
 
