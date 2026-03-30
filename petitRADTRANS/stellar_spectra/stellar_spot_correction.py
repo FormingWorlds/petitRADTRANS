@@ -52,7 +52,8 @@ def rackham_stellar_spot_correction(prt_object, star_effective_temperature: floa
 
     # Compute the stellar spectra
     if stellar_model is None:
-        star = petitRADTRANS.stellar_spectra.phoenix.phoenix_star_table
+        from petitRADTRANS.stellar_spectra.phoenix import phoenix_star_table
+        star = phoenix_star_table
         star_data, _ = star.compute_spectrum(star_effective_temperature)
 
     else:
