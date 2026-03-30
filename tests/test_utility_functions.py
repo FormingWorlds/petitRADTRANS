@@ -6,7 +6,7 @@ from .context import petitRADTRANS
 from .utils import reference_filenames, test_parameters, temperature_guillot_2010
 from .benchmark import Benchmark
 
-from test_radtrans_correlated_k import init_radtrans_correlated_k
+from .test_radtrans_correlated_k import init_radtrans_correlated_k
 
 relative_tolerance = 1e-6
 
