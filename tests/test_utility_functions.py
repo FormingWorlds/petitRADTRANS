@@ -101,5 +101,5 @@ def test_stellar_spot_correction():
         prt_object=atmosphere_ck,
         star_effective_temperature=test_parameters['stellar_parameters']['effective_temperature'],
         star_spot_effective_temperature=(test_parameters['stellar_parameters']['effective_temperature'] - 300),
-        spot_coverage=0.1
+        spot_coverage=test_parameters['stellar_parameters']['spot_coverage'],
     )
