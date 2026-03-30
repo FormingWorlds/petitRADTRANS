@@ -98,7 +98,7 @@ def test_stellar_spot_correction():
     )
 
     benchmark.run(
-        prt_object=atmosphere_ck,
+        frequency_bins_edges=atmosphere_ck._frequency_bins_edges,
         star_effective_temperature=test_parameters['stellar_parameters']['effective_temperature'],
         star_spot_effective_temperature=(test_parameters['stellar_parameters']['effective_temperature'] - 300),
         spot_coverage=test_parameters['stellar_parameters']['spot_coverage'],

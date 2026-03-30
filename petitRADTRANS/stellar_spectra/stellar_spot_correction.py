@@ -8,14 +8,14 @@ import petitRADTRANS
 import petitRADTRANS.physical_constants as cst
 
 
-def rackham_stellar_spot_correction(prt_object, star_effective_temperature: float,
+def rackham_stellar_spot_correction(frequency_bins_edges, star_effective_temperature: float,
                                     star_spot_effective_temperature: float, spot_coverage: float, stellar_model=None,
                                     spot_model=None) -> np.ndarray:
     """Function to compute the stellar spot correction following Rackham et al. 2018 Eq. 2
 
     Args:
-        prt_object: Radtrans object
-            The Radtrans object containing the wavelength grid.
+        frequency_bins_edges: numpy.array
+            The edges of the frequency bins in Hz for which the correction factor should be computed.
         star_effective_temperature: float
             The temperature of the unspotted stellar photosphere in K.
         star_spot_effective_temperature: float
@@ -44,9 +44,9 @@ def rackham_stellar_spot_correction(prt_object, star_effective_temperature: floa
         if spot_model is None:
             raise ValueError("if an individual stellar model should be used, a spot model must also be provided.")
 
-    wavelength_bin_edges = cst.c / prt_object._frequency_bins_edges * 1e4  # in micron
+    wavelength_bin_edges = cst.c / frequency_bins_edges * 1e4  # in micron
 
-    wavelengths = np.array((prt_object._frequency_bins_edges[1:] + prt_object._frequency_bins_edges[:-1]) * 0.5)
+    wavelengths = np.array((frequency_bins_edges[1:] + frequency_bins_edges[:-1]) * 0.5)
     wavelengths = cst.c / wavelengths * 1e4  # in micron
     wavelength_bin_widths = np.diff(wavelength_bin_edges)
 
