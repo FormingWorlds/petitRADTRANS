@@ -4,15 +4,12 @@ All notable changes to petitRADTRANS will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com)
 and this project adheres to [Semantic Versioning](http://semver.org).
 
-## [3.3.4] - 2026-04-09
-### Fixed
-- The incorrect reference file of test_correlated_k_transmission_spectrum_with_custom_cloud_distribution
-- The config_test_radtrans.json file 
-
-## [3.3.3] - 2026-03-13
+## [3.3.3] - 2026-04-10
 ### Fixed
 - that the correct mass fraction is now used for H- free-free absorption (H instead of H-). This bug was introduced when moving from pRT version 2 to 3.
-
+- The incorrect reference file of test_correlated_k_transmission_spectrum_with_custom_cloud_distribution
+- The config_test_radtrans.json file 
+- 
 ## [3.3.2] - 2026-02-16
 ### Fixed
 - An incorrect `reference_pressure` argument is passed to `calculate_emission_spectrum` in `models.py`, causing the function to compute emission spectra using the wrong pressure reference ([issue 124](https://gitlab.com/mauricemolli/petitRADTRANS/-/issues/124)).
