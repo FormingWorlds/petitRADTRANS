@@ -3,7 +3,7 @@ All notable changes to petitRADTRANS will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com)
 and this project adheres to [Semantic Versioning](http://semver.org).
-## [3.3.4] - 2026-04-10
+## [3.4.0] - 2026-04-10
 ### Added
 - Function `rackham_stellar_spot_correction` to correct for stellar spots in transmission spectra, ([issue 9](https://gitlab.com/mauricemolli/petitRADTRANS/-/work_items/9)).
 
