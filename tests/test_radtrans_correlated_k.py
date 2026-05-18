@@ -12,7 +12,8 @@ import numpy as np
 from .context import petitRADTRANS
 from .benchmark import Benchmark
 from .utils import (check_partial_cloud_coverage_full_consistency, get_cloud_parameters,
-                    test_parameters, temperature_guillot_2010, temperature_isothermal)
+                    test_parameters, temperature_guillot_2010, temperature_isothermal,
+                    reference_filenames)
 
 relative_tolerance = 1e-6  # relative tolerance when comparing with older results
 
@@ -332,6 +333,7 @@ def test_correlated_k_transmission_spectrum_with_custom_cloud_distribution():
     mass_fractions, _, cloud_f_sed, _, _ = get_cloud_parameters(
         'mass_fractions_correlated_k'
     )
+    reference_data = np.load(reference_filenames['cloud_particle_number_density_grid'])
 
     benchmark = Benchmark(
         function=atmosphere_ck.calculate_transit_radii,
@@ -346,7 +348,7 @@ def test_correlated_k_transmission_spectrum_with_custom_cloud_distribution():
         mean_molar_masses=test_parameters['mean_molar_mass'],
         planet_radius=test_parameters['planetary_parameters']['radius'] * petitRADTRANS.physical_constants.r_jup_mean,
         reference_pressure=test_parameters['planetary_parameters']['reference_pressure'],
-        cloud_particle_number_density_grid=test_parameters['cloud_particle_number_density_grid'],
+        cloud_particle_number_density_grid=reference_data['cloud_particle_number_density_grid'],
         cloud_particles_radius_distribution="custom",
         frequencies_to_wavelengths=False
         )
