@@ -41,7 +41,6 @@ dependencies = [
     "pyvo",
     "bs4",
     "selenium",
-    "mpi4py",
     "requests",
     "skycalc-cli",
     "matplotlib",

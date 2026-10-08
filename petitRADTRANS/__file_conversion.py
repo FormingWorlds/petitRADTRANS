@@ -43,7 +43,7 @@ if load_mpi:
 
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
-    except ImportError:
+    except (ImportError, RuntimeError):
         MPI = None
         comm = None
         rank = 0

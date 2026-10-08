@@ -27,7 +27,7 @@ if os.environ.get("pRT_emcee_mode") != 'True':  # TODO make use of config_parser
 
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
-    except ImportError:
+    except (ImportError, RuntimeError):
         MPI = None
 
 
